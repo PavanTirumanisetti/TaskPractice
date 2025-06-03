@@ -10,16 +10,13 @@ namespace BankStatementGenerator
     {
         static void Main(string[] args)
         {
-            // Parse rpt.SH1 file (replace with actual file path)
             var statementData = ParseRptFile("path/to/rpt.SH1");
-            
-            // Generate PDF
             GeneratePdf(statementData, "BankStatement.pdf");
         }
 
         static StatementData ParseRptFile(string filePath)
         {
-            // Mock data extraction (replace with actual file parsing logic)
+            // Implement your actual file parsing logic here
             return new StatementData
             {
                 ClientBasic = "00001-000068",
@@ -40,6 +37,13 @@ namespace BankStatementGenerator
 
         static void GeneratePdf(StatementData data, string outputPath)
         {
+            // Create base Helvetica font
+            BaseFont baseFont = BaseFont.CreateFont(
+                BaseFont.HELVETICA, 
+                BaseFont.CP1252, 
+                BaseFont.NOT_EMBEDDED
+            );
+            
             using (FileStream fs = new FileStream(outputPath, FileMode.Create))
             {
                 Document doc = new Document(PageSize.A4, 25, 25, 30, 30);
@@ -47,19 +51,20 @@ namespace BankStatementGenerator
 
                 doc.Open();
 
-                // Title
-                doc.Add(new Paragraph("Consolidated Cash Statement", 
-                    new Font(Font.FontFamily.HELVETICA, 16, Font.BOLD)) 
+                // Title - using BaseFont directly
+                Font titleFont = new Font(baseFont, 16, Font.BOLD);
+                doc.Add(new Paragraph("Consolidated Cash Statement", titleFont) 
                 { 
                     Alignment = Element.ALIGN_CENTER,
                     SpacingAfter = 20
                 });
 
-                // Client Information
-                doc.Add(new Paragraph($"Client Basic: {data.ClientBasic}"));
-                doc.Add(new Paragraph($"Statement Period: {data.StatementPeriod}"));
-                doc.Add(new Paragraph(data.CompanyName));
-                doc.Add(new Paragraph(data.Address));
+                // Client Information - using FontFactory
+                Font normalFont = FontFactory.GetFont("Helvetica", 12);
+                doc.Add(new Paragraph($"Client Basic: {data.ClientBasic}", normalFont));
+                doc.Add(new Paragraph($"Statement Period: {data.StatementPeriod}", normalFont));
+                doc.Add(new Paragraph(data.CompanyName, normalFont));
+                doc.Add(new Paragraph(data.Address, normalFont));
                 doc.Add(Chunk.NEWLINE);
 
                 // Account Summary Table
@@ -67,68 +72,106 @@ namespace BankStatementGenerator
                 summaryTable.WidthPercentage = 100;
                 summaryTable.SetWidths(new float[] { 2, 1, 2 });
 
-                summaryTable.AddCell(CreateHeaderCell("Account Number"));
-                summaryTable.AddCell(CreateHeaderCell("CCY"));
-                summaryTable.AddCell(CreateHeaderCell("Balance"));
-                summaryTable.AddCell(CreateCell(data.AccountNumber));
-                summaryTable.AddCell(CreateCell(data.Currency));
-                summaryTable.AddCell(CreateCell(data.OpeningBalance.ToString("N2")));
+                // Header with background color
+                Font headerFont = new Font(baseFont, 10, Font.BOLD);
+                summaryTable.AddCell(new PdfPCell(new Phrase("Account Number", headerFont)) 
+                { 
+                    BackgroundColor = new BaseColor(220, 220, 220),
+                    HorizontalAlignment = Element.ALIGN_CENTER,
+                    Padding = 5
+                });
+                summaryTable.AddCell(new PdfPCell(new Phrase("CCY", headerFont)) 
+                { 
+                    BackgroundColor = new BaseColor(220, 220, 220),
+                    HorizontalAlignment = Element.ALIGN_CENTER,
+                    Padding = 5
+                });
+                summaryTable.AddCell(new PdfPCell(new Phrase("Balance", headerFont)) 
+                { 
+                    BackgroundColor = new BaseColor(220, 220, 220),
+                    HorizontalAlignment = Element.ALIGN_CENTER,
+                    Padding = 5
+                });
+
+                // Data rows
+                summaryTable.AddCell(new PdfPCell(new Phrase(data.AccountNumber, normalFont)) 
+                { 
+                    Padding = 5,
+                    HorizontalAlignment = Element.ALIGN_LEFT
+                });
+                summaryTable.AddCell(new PdfPCell(new Phrase(data.Currency, normalFont)) 
+                { 
+                    Padding = 5,
+                    HorizontalAlignment = Element.ALIGN_LEFT
+                });
+                summaryTable.AddCell(new PdfPCell(new Phrase(data.OpeningBalance.ToString("N2"), normalFont)) 
+                { 
+                    Padding = 5,
+                    HorizontalAlignment = Element.ALIGN_RIGHT
+                });
 
                 doc.Add(summaryTable);
                 doc.Add(Chunk.NEWLINE);
 
                 // Account Activities
-                doc.Add(new Paragraph($"CURRENT ACCOUNT {data.AccountNumber} {data.Currency}",
-                    new Font(Font.FontFamily.HELVETICA, 12, Font.BOLD)));
+                Font sectionFont = new Font(baseFont, 12, Font.BOLD);
+                doc.Add(new Paragraph($"CURRENT ACCOUNT {data.AccountNumber} {data.Currency}", sectionFont));
 
                 PdfPTable activityTable = new PdfPTable(3);
                 activityTable.WidthPercentage = 100;
                 activityTable.SetWidths(new float[] { 1, 3, 2 });
 
-                activityTable.AddCell(CreateHeaderCell("Date"));
-                activityTable.AddCell(CreateHeaderCell("Transaction Details"));
-                activityTable.AddCell(CreateHeaderCell("Balance"));
+                // Header row
+                activityTable.AddCell(new PdfPCell(new Phrase("Date", headerFont)) 
+                { 
+                    BackgroundColor = new BaseColor(220, 220, 220),
+                    HorizontalAlignment = Element.ALIGN_CENTER,
+                    Padding = 5
+                });
+                activityTable.AddCell(new PdfPCell(new Phrase("Transaction Details", headerFont)) 
+                { 
+                    BackgroundColor = new BaseColor(220, 220, 220),
+                    HorizontalAlignment = Element.ALIGN_CENTER,
+                    Padding = 5
+                });
+                activityTable.AddCell(new PdfPCell(new Phrase("Balance", headerFont)) 
+                { 
+                    BackgroundColor = new BaseColor(220, 220, 220),
+                    HorizontalAlignment = Element.ALIGN_CENTER,
+                    Padding = 5
+                });
 
+                // Data rows
                 foreach (var activity in data.Activities)
                 {
-                    activityTable.AddCell(CreateCell(activity.Date));
-                    activityTable.AddCell(CreateCell(activity.Description));
-                    activityTable.AddCell(CreateCell(activity.Balance.ToString("N2")));
+                    activityTable.AddCell(new PdfPCell(new Phrase(activity.Date, normalFont)) 
+                    { 
+                        Padding = 5
+                    });
+                    activityTable.AddCell(new PdfPCell(new Phrase(activity.Description, normalFont)) 
+                    { 
+                        Padding = 5
+                    });
+                    activityTable.AddCell(new PdfPCell(new Phrase(activity.Balance.ToString("N2"), normalFont)) 
+                    { 
+                        Padding = 5,
+                        HorizontalAlignment = Element.ALIGN_RIGHT
+                    });
                 }
 
                 doc.Add(activityTable);
                 doc.Add(Chunk.NEWLINE);
 
                 // Important Notice
-                doc.Add(new Paragraph("IMPORTANT", 
-                    new Font(Font.FontFamily.HELVETICA, 10, Font.BOLD)));
+                Font noticeFont = new Font(baseFont, 10, Font.BOLD);
+                doc.Add(new Paragraph("IMPORTANT", noticeFont));
                 doc.Add(new Paragraph("THIS STATEMENT WILL BE CONSIDERED CORRECT IF NO ERROR OR OMISSION " +
-                    "IS REPORTED TO THE BANK WITHIN 90 DAYS OF STATEMENT POSTING DATE."));
+                    "IS REPORTED TO THE BANK WITHIN 90 DAYS OF STATEMENT POSTING DATE.", normalFont));
                 doc.Add(new Paragraph("For complaints, please call our Client Services section " +
-                    "at 2108 5449 or email us at csd_herojemo@eec.sorgevans.com."));
+                    "at 2108 5449 or email us at csd_herojemo@eec.sorgevans.com.", normalFont));
 
                 doc.Close();
             }
-        }
-
-        static PdfPCell CreateHeaderCell(string text)
-        {
-            return new PdfPCell(new Phrase(text, 
-                new Font(Font.FontFamily.HELVETICA, 10, Font.BOLD)))
-            {
-                BackgroundColor = new BaseColor(220, 220, 220),
-                Padding = 5,
-                HorizontalAlignment = Element.ALIGN_CENTER
-            };
-        }
-
-        static PdfPCell CreateCell(string text)
-        {
-            return new PdfPCell(new Phrase(text))
-            {
-                Padding = 5,
-                HorizontalAlignment = Element.ALIGN_LEFT
-            };
         }
     }
 
