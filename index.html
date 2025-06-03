@@ -1,179 +1,102 @@
-using Microsoft.VisualBasic;
 using System;
 using System.IO;
+using System.Linq;
+using System.Text.RegularExpressions;
 using System.Collections.Generic;
-using System.Windows.Forms;
 using iTextSharp.text;
 using iTextSharp.text.pdf;
 
-class Program
+class StatementPDFGenerator
 {
     static void Main()
     {
-        string inputPath = @"C:\Path\To\input.txt";     // 👈 Your .txt file here
-        string outputPath = @"C:\Path\To\output.pdf";   // 👈 Output path
+        string inputFile = @"C:\Path\To\Your\File.rpt.SH1";
+        string outputFile = @"C:\Path\To\Output\Statement.pdf";
 
-        List<string> lines = new List<string>(File.ReadAllLines(inputPath));
+        string[] lines = File.ReadAllLines(inputFile);
+        
+        string accountNumber = "";
+        string currency = "";
+        string balance = "";
+        string period = "";
+        List<string[]> transactions = new();
 
-        string clientBasic = "", statementPeriod = "", footerNote = "";
-        List<string> addressLines = new();
-        List<string[]> accountSummaryRows = new();
-        List<string[]> accountActivityRows = new();
-
-        bool readingAddress = false, readingSummary = false, readingActivity = false;
-
-        foreach (string rawLine in lines)
+        // Parse header details and transaction lines
+        foreach (string line in lines)
         {
-            string line = rawLine.Trim();
-
-            if (line.StartsWith("Client Basic:"))
+            if (line.Contains("Account:"))
+                accountNumber = line.Split(':')[1].Trim();
+            else if (line.Contains("Currency:"))
+                currency = line.Split(':')[1].Trim();
+            else if (line.Contains("Balance:"))
+                balance = line.Split(':')[1].Trim();
+            else if (line.Contains("Period:"))
+                period = line.Split(':')[1].Trim();
+            else if (Regex.IsMatch(line, @"^\d{2} \w{3}"))
             {
-                clientBasic = line;
-                readingAddress = false;
-            }
-            else if (line.StartsWith("Statement Period:"))
-            {
-                statementPeriod = line;
-                readingAddress = true;
-            }
-            else if (line.StartsWith("ACCOUNT SUMMARY"))
-            {
-                readingAddress = false;
-                readingSummary = true;
-                continue;
-            }
-            else if (line.StartsWith("ACCOUNT ACTIVITIES"))
-            {
-                readingSummary = false;
-                readingActivity = true;
-                continue;
-            }
-            else if (line.StartsWith("THIS STATEMENT"))
-            {
-                readingActivity = false;
-                footerNote = line;
-            }
-            else if (readingAddress)
-            {
-                addressLines.Add(line);
-            }
-            else if (readingSummary && !line.StartsWith("Account Type"))
-            {
-                if (!string.IsNullOrWhiteSpace(line))
-                    accountSummaryRows.Add(SplitByMultipleSpaces(line));
-            }
-            else if (readingActivity && !line.StartsWith("Date"))
-            {
-                if (!string.IsNullOrWhiteSpace(line))
-                    accountActivityRows.Add(SplitByMultipleSpaces(line));
+                // Transaction line (e.g., 01 OCT  Opening Balance     0.00     0.00    46,972.84)
+                var parts = Regex.Split(line.Trim(), @"\s{2,}"); // split by 2+ spaces
+                if (parts.Length >= 3)
+                {
+                    string date = parts[0];
+                    string detail = parts[1];
+                    string deposit = parts.Length > 2 ? parts.ElementAtOrDefault(2) ?? "" : "";
+                    string withdrawal = parts.Length > 3 ? parts.ElementAtOrDefault(3) ?? "" : "";
+                    string bal = parts.Length > 4 ? parts.ElementAtOrDefault(4) ?? "" : "";
+                    transactions.Add(new[] { date, detail, deposit, withdrawal, bal });
+                }
             }
         }
 
         // Generate PDF
-        using (FileStream fs = new FileStream(outputPath, FileMode.Create, FileAccess.Write, FileShare.None))
+        Document doc = new Document(PageSize.A4, 40, 40, 50, 50);
+        PdfWriter.GetInstance(doc, new FileStream(outputFile, FileMode.Create));
+        doc.Open();
+
+        Font titleFont = FontFactory.GetFont("Arial", 14, Font.BOLD);
+        Font boldFont = FontFactory.GetFont("Arial", 10, Font.BOLD);
+        Font normalFont = FontFactory.GetFont("Arial", 10, Font.NORMAL);
+
+        doc.Add(new Paragraph("Consolidated Cash Statement", titleFont));
+        doc.Add(new Paragraph("\n"));
+
+        // Header Info Table
+        PdfPTable info = new PdfPTable(2) { WidthPercentage = 100 };
+        info.AddCell(new Phrase("Account Number:", boldFont));
+        info.AddCell(new Phrase(accountNumber, normalFont));
+        info.AddCell(new Phrase("Statement Period:", boldFont));
+        info.AddCell(new Phrase(period, normalFont));
+        info.AddCell(new Phrase("Currency:", boldFont));
+        info.AddCell(new Phrase(currency, normalFont));
+        info.AddCell(new Phrase("Closing Balance:", boldFont));
+        info.AddCell(new Phrase(balance, normalFont));
+        doc.Add(info);
+
+        doc.Add(new Paragraph("\nACCOUNT ACTIVITIES\n", boldFont));
+
+        // Transactions Table
+        PdfPTable txnTable = new PdfPTable(5) { WidthPercentage = 100 };
+        txnTable.SetWidths(new float[] { 2, 5, 3, 3, 3 });
+
+        string[] headers = { "Date", "Transaction Details", "Deposit", "Withdrawal", "Balance" };
+        foreach (var h in headers)
+            txnTable.AddCell(new Phrase(h, boldFont));
+
+        foreach (var row in transactions)
         {
-            Document doc = new Document(PageSize.A4, 36, 36, 36, 36);
-            PdfWriter.GetInstance(doc, fs);
-            doc.Open();
-
-            // Fonts
-            var titleFont = FontFactory.GetFont("Arial", 16, Font.BOLD);
-            var normalFont = FontFactory.GetFont("Arial", 10, Font.NORMAL);
-            var boldFont = FontFactory.GetFont("Arial", 10, Font.BOLD);
-            var italicFont = FontFactory.GetFont("Arial", 9, Font.ITALIC);
-
-            doc.Add(new Paragraph("Consolidated Cash Statement", titleFont));
-            doc.Add(new Chunk("\n"));
-
-            // Header
-            PdfPTable headerTable = new PdfPTable(2);
-            headerTable.WidthPercentage = 100;
-            headerTable.SetWidths(new float[] { 1, 1 });
-            headerTable.AddCell(CreateCell(clientBasic, boldFont));
-            headerTable.AddCell(CreateCell(statementPeriod, boldFont));
-
-            PdfPCell addressCell = new PdfPCell(new Phrase(string.Join("\n", addressLines), normalFont));
-            addressCell.Colspan = 2;
-            addressCell.Padding = 5;
-            headerTable.AddCell(addressCell);
-
-            doc.Add(headerTable);
-            doc.Add(new Chunk("\n"));
-
-            // Account Summary
-            doc.Add(new Paragraph("ACCOUNT SUMMARY", boldFont));
-            doc.Add(new Chunk("\n"));
-
-            PdfPTable summaryTable = new PdfPTable(5);
-            summaryTable.WidthPercentage = 100;
-            summaryTable.SetWidths(new float[] { 2.5f, 3.5f, 1.5f, 2.5f, 2.5f });
-
-            summaryTable.AddCell(CreateHeaderCell("Account Type", boldFont));
-            summaryTable.AddCell(CreateHeaderCell("Account Number", boldFont));
-            summaryTable.AddCell(CreateHeaderCell("CCY", boldFont));
-            summaryTable.AddCell(CreateHeaderCell("Balance", boldFont));
-            summaryTable.AddCell(CreateHeaderCell("HKD Equivalent", boldFont));
-
-            foreach (var row in accountSummaryRows)
+            foreach (string cell in row)
             {
-                foreach (var col in row)
-                    summaryTable.AddCell(CreateCell(col, normalFont));
+                txnTable.AddCell(new Phrase(cell, normalFont));
             }
-
-            doc.Add(summaryTable);
-            doc.Add(new Chunk("\n"));
-
-            // Account Activities
-            doc.Add(new Paragraph("ACCOUNT ACTIVITIES", boldFont));
-            doc.Add(new Chunk("\n"));
-
-            PdfPTable activityTable = new PdfPTable(5);
-            activityTable.WidthPercentage = 100;
-            activityTable.SetWidths(new float[] { 1.5f, 4.5f, 2f, 2f, 2.5f });
-
-            activityTable.AddCell(CreateHeaderCell("Date", boldFont));
-            activityTable.AddCell(CreateHeaderCell("Transaction Details", boldFont));
-            activityTable.AddCell(CreateHeaderCell("Deposit", boldFont));
-            activityTable.AddCell(CreateHeaderCell("Withdrawal", boldFont));
-            activityTable.AddCell(CreateHeaderCell("Balance", boldFont));
-
-            foreach (var row in accountActivityRows)
-            {
-                for (int i = 0; i < 5; i++)
-                {
-                    string cellText = i < row.Length ? row[i] : "";
-                    activityTable.AddCell(CreateCell(cellText, normalFont));
-                }
-            }
-
-            doc.Add(activityTable);
-            doc.Add(new Chunk("\n"));
-
-            // Footer
-            doc.Add(new Paragraph(footerNote, italicFont));
-            doc.Close();
         }
 
-        Console.WriteLine("PDF generated at: " + outputPath);
-    }
+        doc.Add(txnTable);
 
-    static PdfPCell CreateCell(string text, Font font)
-    {
-        return new PdfPCell(new Phrase(text, font)) { Padding = 5 };
-    }
+        // Footer
+        doc.Add(new Paragraph("\nIMPORTANT: This statement will be considered correct if no error or omission is reported within 90 days of statement posting date.", normalFont));
 
-    static PdfPCell CreateHeaderCell(string text, Font font)
-    {
-        return new PdfPCell(new Phrase(text, font))
-        {
-            BackgroundColor = new BaseColor(220, 220, 220),
-            Padding = 5
-        };
-    }
-
-    static string[] SplitByMultipleSpaces(string input)
-    {
-        return System.Text.RegularExpressions.Regex.Split(input.Trim(), @"\s{2,}");
+        doc.Close();
+        Console.WriteLine("PDF successfully generated at:\n" + outputFile);
     }
 }
-                        
+            
