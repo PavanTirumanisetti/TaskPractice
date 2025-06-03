@@ -1,102 +1,144 @@
+using PdfSharp.Pdf;
+using PdfSharp.Drawing;
 using System;
 using System.IO;
-using System.Linq;
 using System.Text.RegularExpressions;
 using System.Collections.Generic;
-using iTextSharp.text;
-using iTextSharp.text.pdf;
 
-class StatementPDFGenerator
+class Program
 {
     static void Main()
     {
-        string inputFile = @"C:\Path\To\Your\File.rpt.SH1";
-        string outputFile = @"C:\Path\To\Output\Statement.pdf";
+        string inputPath = "ftsmprpt.rpt.SH1";
+        string outputPath = "CashStatement.pdf";
 
-        string[] lines = File.ReadAllLines(inputFile);
-        
-        string accountNumber = "";
-        string currency = "";
-        string balance = "";
-        string period = "";
-        List<string[]> transactions = new();
+        if (!File.Exists(inputPath))
+        {
+            Console.WriteLine("Input file not found.");
+            return;
+        }
 
-        // Parse header details and transaction lines
+        string[] lines = File.ReadAllLines(inputPath);
+        GeneratePdf(lines, outputPath);
+        Console.WriteLine("PDF generated: " + outputPath);
+    }
+
+    static void GeneratePdf(string[] lines, string outputPath)
+    {
+        PdfDocument doc = new PdfDocument();
+        doc.Info.Title = "Cash Statement";
+        PdfPage page = doc.AddPage();
+        XGraphics gfx = XGraphics.FromPdfPage(page);
+        XFont font = new XFont("Verdana", 9, XFontStyle.Regular);
+        XFont boldFont = new XFont("Verdana", 9, XFontStyle.Bold);
+
+        double y = 40;
+
+        // Header
+        gfx.DrawString("Consolidated Cash Statement", boldFont, XBrushes.Black, new XRect(0, y, page.Width, 20), XStringFormats.TopCenter);
+        y += 25;
+
         foreach (string line in lines)
         {
-            if (line.Contains("Account:"))
-                accountNumber = line.Split(':')[1].Trim();
-            else if (line.Contains("Currency:"))
-                currency = line.Split(':')[1].Trim();
-            else if (line.Contains("Balance:"))
-                balance = line.Split(':')[1].Trim();
-            else if (line.Contains("Period:"))
-                period = line.Split(':')[1].Trim();
-            else if (Regex.IsMatch(line, @"^\d{2} \w{3}"))
+            if (line.Contains("Client Basic"))
             {
-                // Transaction line (e.g., 01 OCT  Opening Balance     0.00     0.00    46,972.84)
-                var parts = Regex.Split(line.Trim(), @"\s{2,}"); // split by 2+ spaces
-                if (parts.Length >= 3)
+                string client = Regex.Match(line, @"Client Basic\s+(\S+)").Groups[1].Value;
+                gfx.DrawString("Client Basic: " + client, font, XBrushes.Black, 40, y);
+                y += 15;
+            }
+            if (line.Contains("Statement Period"))
+            {
+                string period = Regex.Match(line, @"Statement Period\s+(\d{2}/\d{2}/\d{2}-\d{2}/\d{2}/\d{2})").Groups[1].Value;
+                gfx.DrawString("Statement Period: " + period, font, XBrushes.Black, 40, y);
+                y += 20;
+            }
+        }
+
+        // Address and Company Info
+        List<string> companyLines = new List<string>();
+        foreach (string line in lines)
+        {
+            if (line.Contains("DICKSON") || line.Contains("OCEAN CENTRE") || line.Contains("HONG KONG"))
+            {
+                companyLines.Add(line.Trim());
+            }
+        }
+
+        foreach (string line in companyLines)
+        {
+            gfx.DrawString(line, font, XBrushes.Black, 40, y);
+            y += 15;
+        }
+
+        y += 15;
+        gfx.DrawString("ACCOUNT SUMMARY", boldFont, XBrushes.Black, 40, y);
+        y += 20;
+
+        gfx.DrawString("Type", boldFont, XBrushes.Black, 40, y);
+        gfx.DrawString("Account No", boldFont, XBrushes.Black, 120, y);
+        gfx.DrawString("CCY", boldFont, XBrushes.Black, 240, y);
+        gfx.DrawString("Balance", boldFont, XBrushes.Black, 280, y);
+        gfx.DrawString("Exch Rate", boldFont, XBrushes.Black, 360, y);
+        gfx.DrawString("HKD Equivalent", boldFont, XBrushes.Black, 430, y);
+        y += 15;
+
+        foreach (string line in lines)
+        {
+            if (line.Contains("CURRENT ACCOUNT") && line.Contains("HK"))
+            {
+                var match = Regex.Match(line, @"(\d[\d\s]+)\s+HK\s+([\d,]+\.\d{2})\s+([\d\.]+)\s+([\d,]+\.\d{2})");
+                if (match.Success)
                 {
-                    string date = parts[0];
-                    string detail = parts[1];
-                    string deposit = parts.Length > 2 ? parts.ElementAtOrDefault(2) ?? "" : "";
-                    string withdrawal = parts.Length > 3 ? parts.ElementAtOrDefault(3) ?? "" : "";
-                    string bal = parts.Length > 4 ? parts.ElementAtOrDefault(4) ?? "" : "";
-                    transactions.Add(new[] { date, detail, deposit, withdrawal, bal });
+                    string accNum = match.Groups[1].Value.Trim();
+                    string balance = match.Groups[2].Value;
+                    string rate = match.Groups[3].Value;
+                    string hkdEq = match.Groups[4].Value;
+
+                    gfx.DrawString("Current", font, XBrushes.Black, 40, y);
+                    gfx.DrawString(accNum, font, XBrushes.Black, 120, y);
+                    gfx.DrawString("HK", font, XBrushes.Black, 240, y);
+                    gfx.DrawString(balance, font, XBrushes.Black, 280, y);
+                    gfx.DrawString(rate, font, XBrushes.Black, 360, y);
+                    gfx.DrawString(hkdEq, font, XBrushes.Black, 430, y);
+                    y += 15;
                 }
             }
         }
 
-        // Generate PDF
-        Document doc = new Document(PageSize.A4, 40, 40, 50, 50);
-        PdfWriter.GetInstance(doc, new FileStream(outputFile, FileMode.Create));
-        doc.Open();
+        y += 20;
+        gfx.DrawString("ACCOUNT ACTIVITIES", boldFont, XBrushes.Black, 40, y);
+        y += 20;
 
-        Font titleFont = FontFactory.GetFont("Arial", 14, Font.BOLD);
-        Font boldFont = FontFactory.GetFont("Arial", 10, Font.BOLD);
-        Font normalFont = FontFactory.GetFont("Arial", 10, Font.NORMAL);
+        gfx.DrawString("Date", boldFont, XBrushes.Black, 40, y);
+        gfx.DrawString("Transaction", boldFont, XBrushes.Black, 100, y);
+        gfx.DrawString("Deposit", boldFont, XBrushes.Black, 250, y);
+        gfx.DrawString("Withdrawal", boldFont, XBrushes.Black, 320, y);
+        gfx.DrawString("Balance", boldFont, XBrushes.Black, 400, y);
+        y += 15;
 
-        doc.Add(new Paragraph("Consolidated Cash Statement", titleFont));
-        doc.Add(new Paragraph("\n"));
-
-        // Header Info Table
-        PdfPTable info = new PdfPTable(2) { WidthPercentage = 100 };
-        info.AddCell(new Phrase("Account Number:", boldFont));
-        info.AddCell(new Phrase(accountNumber, normalFont));
-        info.AddCell(new Phrase("Statement Period:", boldFont));
-        info.AddCell(new Phrase(period, normalFont));
-        info.AddCell(new Phrase("Currency:", boldFont));
-        info.AddCell(new Phrase(currency, normalFont));
-        info.AddCell(new Phrase("Closing Balance:", boldFont));
-        info.AddCell(new Phrase(balance, normalFont));
-        doc.Add(info);
-
-        doc.Add(new Paragraph("\nACCOUNT ACTIVITIES\n", boldFont));
-
-        // Transactions Table
-        PdfPTable txnTable = new PdfPTable(5) { WidthPercentage = 100 };
-        txnTable.SetWidths(new float[] { 2, 5, 3, 3, 3 });
-
-        string[] headers = { "Date", "Transaction Details", "Deposit", "Withdrawal", "Balance" };
-        foreach (var h in headers)
-            txnTable.AddCell(new Phrase(h, boldFont));
-
-        foreach (var row in transactions)
+        foreach (string line in lines)
         {
-            foreach (string cell in row)
+            if (Regex.IsMatch(line, @"\d{2} OCT"))
             {
-                txnTable.AddCell(new Phrase(cell, normalFont));
+                var parts = Regex.Split(line.Trim(), @"\s{2,}");
+                if (parts.Length >= 4)
+                {
+                    string date = parts[0];
+                    string transaction = parts[1];
+                    string deposit = parts[2];
+                    string withdrawal = parts[3];
+                    string balance = parts.Length > 4 ? parts[4] : "";
+
+                    gfx.DrawString(date, font, XBrushes.Black, 40, y);
+                    gfx.DrawString(transaction, font, XBrushes.Black, 100, y);
+                    gfx.DrawString(deposit, font, XBrushes.Black, 250, y);
+                    gfx.DrawString(withdrawal, font, XBrushes.Black, 320, y);
+                    gfx.DrawString(balance, font, XBrushes.Black, 400, y);
+                    y += 15;
+                }
             }
         }
 
-        doc.Add(txnTable);
-
-        // Footer
-        doc.Add(new Paragraph("\nIMPORTANT: This statement will be considered correct if no error or omission is reported within 90 days of statement posting date.", normalFont));
-
-        doc.Close();
-        Console.WriteLine("PDF successfully generated at:\n" + outputFile);
+        doc.Save(outputPath);
     }
 }
-            
