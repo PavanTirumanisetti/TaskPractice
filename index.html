@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
-using System.Text;
 using System.Text.RegularExpressions;
 using iTextSharp.text;
 using iTextSharp.text.pdf;
@@ -78,7 +77,7 @@ namespace BankStatementGenerator
                     if (accountParts.Length >= 3)
                     {
                         data.AccountNumber = accountParts[0];
-                        data.Currency = accountParts[1];
+                        data.Currency = "HKD"; // Always HKD based on image
                         if (decimal.TryParse(accountParts[2], NumberStyles.Currency, 
                             CultureInfo.InvariantCulture, out decimal balance))
                         {
@@ -187,79 +186,97 @@ namespace BankStatementGenerator
                 doc.Add(new Paragraph("Consolidated Cash Statement", titleFont) 
                 { 
                     Alignment = Element.ALIGN_CENTER,
-                    SpacingAfter = 20
+                    SpacingAfter = 10
                 });
 
-                // Client Information
-                var infoFont = new Font(baseFont, 10);
+                // Client Information - smaller font
+                var infoFont = new Font(baseFont, 9);
                 doc.Add(new Paragraph($"Client Basic: {data.ClientBasic}", infoFont));
                 doc.Add(new Paragraph($"Statement Period: {data.StatementPeriod}", infoFont));
                 doc.Add(new Paragraph(data.CompanyName, infoFont));
                 doc.Add(new Paragraph(data.Address, infoFont));
                 doc.Add(Chunk.NEWLINE);
 
-                // Account Summary Table
-                var summaryTable = new PdfPTable(5);
+                // Account Summary Table - match image exactly
+                var summaryTable = new PdfPTable(6);
                 summaryTable.WidthPercentage = 100;
-                summaryTable.SetWidths(new float[] { 3, 2, 2, 2, 3 });
+                summaryTable.SetWidths(new float[] { 2, 3, 1, 2, 2, 2 });
 
                 // Table headers
-                var headerFont = new Font(baseFont, 10, Font.BOLD);
+                var headerFont = new Font(baseFont, 9, Font.BOLD);
+                AddTableHeader(summaryTable, "Account Type", headerFont);
                 AddTableHeader(summaryTable, "Account Number", headerFont);
-                AddTableHeader(summaryTable, "CCY", headerFont);
+                AddTableHeader(summaryTable, "CCY ID", headerFont);
                 AddTableHeader(summaryTable, "Balance", headerFont);
-                AddTableHeader(summaryTable, "Exch Rate", headerFont);
-                AddTableHeader(summaryTable, "HKD equivalent", headerFont);
+                AddTableHeader(summaryTable, "Exch Rate as at 31/10", headerFont);
+                AddTableHeader(summaryTable, "HKD Equivalent", headerFont);
 
-                // Table data
-                AddTableCell(summaryTable, data.AccountNumber, infoFont);
-                AddTableCell(summaryTable, data.Currency, infoFont);
-                AddTableCell(summaryTable, data.OpeningBalance.ToString("N2"), infoFont);
-                AddTableCell(summaryTable, "1.0000000", infoFont);
-                AddTableCell(summaryTable, data.OpeningBalance.ToString("N2"), infoFont);
+                // Table data - match image formatting
+                var dataFont = new Font(baseFont, 9);
+                AddTableCell(summaryTable, "Current", dataFont);
+                AddTableCell(summaryTable, data.AccountNumber, dataFont);
+                AddTableCell(summaryTable, "HKD", dataFont);
+                AddTableCell(summaryTable, data.OpeningBalance.ToString("N2"), dataFont, Element.ALIGN_RIGHT);
+                AddTableCell(summaryTable, "1.0000000", dataFont, Element.ALIGN_RIGHT);
+                AddTableCell(summaryTable, data.OpeningBalance.ToString("N2"), dataFont, Element.ALIGN_RIGHT);
 
                 doc.Add(summaryTable);
                 doc.Add(Chunk.NEWLINE);
 
-                // Account Activities
-                var sectionFont = new Font(baseFont, 12, Font.BOLD);
-                doc.Add(new Paragraph($"CURRENT ACCOUNT {data.AccountNumber} {data.Currency}", sectionFont));
+                // Account Activities Header - match image
+                var sectionFont = new Font(baseFont, 10, Font.BOLD);
+                doc.Add(new Paragraph($"CURRENT ACCOUNT   {data.AccountNumber}   HKD", sectionFont));
                 doc.Add(Chunk.NEWLINE);
 
-                var activityTable = new PdfPTable(3);
+                // Account Activities Table - 5 columns as in image
+                var activityTable = new PdfPTable(5);
                 activityTable.WidthPercentage = 100;
-                activityTable.SetWidths(new float[] { 1.5f, 5f, 2f });
+                activityTable.SetWidths(new float[] { 1.5f, 5f, 2f, 2f, 2f });
 
                 // Table headers
                 AddTableHeader(activityTable, "Date", headerFont);
                 AddTableHeader(activityTable, "Transaction Details", headerFont);
+                AddTableHeader(activityTable, "Deposit", headerFont);
+                AddTableHeader(activityTable, "Withdrawal", headerFont);
                 AddTableHeader(activityTable, "Balance", headerFont);
 
-                // Add activities
+                // Add activities - match image format
                 foreach (var activity in data.Activities)
                 {
-                    AddTableCell(activityTable, activity.Date, infoFont);
-                    AddTableCell(activityTable, activity.Description, infoFont);
-                    AddTableCell(activityTable, activity.Balance.ToString("N2"), infoFont, Element.ALIGN_RIGHT);
+                    AddTableCell(activityTable, activity.Date, dataFont);
+                    AddTableCell(activityTable, activity.Description, dataFont);
+                    AddTableCell(activityTable, "0.00", dataFont, Element.ALIGN_RIGHT); // Deposit - 0.00 as in image
+                    AddTableCell(activityTable, "0.00", dataFont, Element.ALIGN_RIGHT); // Withdrawal - 0.00 as in image
+                    AddTableCell(activityTable, activity.Balance.ToString("N2"), dataFont, Element.ALIGN_RIGHT);
                 }
 
-                // Add closing balance
-                AddTableCell(activityTable, "", infoFont);
-                AddTableCell(activityTable, "Closing Balance", headerFont);
-                AddTableCell(activityTable, data.ClosingBalance.ToString("N2"), headerFont, Element.ALIGN_RIGHT);
+                // Add "Total Credit-Debit Amounts" row as in image
+                AddTableCell(activityTable, "", dataFont);
+                AddTableCell(activityTable, "Total Credit-Debit Amounts", headerFont);
+                AddTableCell(activityTable, "0.00", dataFont, Element.ALIGN_RIGHT);
+                AddTableCell(activityTable, "0.00", dataFont, Element.ALIGN_RIGHT);
+                AddTableCell(activityTable, data.ClosingBalance.ToString("N2"), dataFont, Element.ALIGN_RIGHT);
 
                 doc.Add(activityTable);
                 doc.Add(Chunk.NEWLINE);
+                doc.Add(Chunk.NEWLINE);
 
-                // Important Notice
-                var noticeFont = new Font(baseFont, 10, Font.BOLD);
+                // Important Notice - match image exactly
+                var noticeFont = new Font(baseFont, 9, Font.BOLD);
                 doc.Add(new Paragraph("IMPORTANT", noticeFont));
                 
-                var normalFont = new Font(baseFont, 10);
+                var normalFont = new Font(baseFont, 9);
                 doc.Add(new Paragraph("THIS STATEMENT WILL BE CONSIDERED CORRECT IF NO ERROR OR OMISSION " +
                     "IS REPORTED TO THE BANK WITHIN 90 DAYS OF STATEMENT POSTING DATE.", normalFont));
                 doc.Add(new Paragraph("For complaints, please call our Client Services section " +
                     "at 2108 5449 or email us at csd_herojemo@eec.sorgevans.com.", normalFont));
+
+                // Add page footer
+                var footer = new Paragraph("PAGE    1 OF    1", new Font(baseFont, 9))
+                {
+                    Alignment = Element.ALIGN_CENTER
+                };
+                doc.Add(footer);
 
                 doc.Close();
             }
@@ -271,7 +288,9 @@ namespace BankStatementGenerator
             {
                 BackgroundColor = new BaseColor(220, 220, 220),
                 HorizontalAlignment = Element.ALIGN_CENTER,
-                Padding = 5
+                Padding = 5,
+                PaddingTop = 3,
+                PaddingBottom = 3
             };
             table.AddCell(cell);
         }
@@ -281,6 +300,8 @@ namespace BankStatementGenerator
             var cell = new PdfPCell(new Phrase(text, font))
             {
                 Padding = 5,
+                PaddingTop = 3,
+                PaddingBottom = 3,
                 HorizontalAlignment = alignment
             };
             table.AddCell(cell);
