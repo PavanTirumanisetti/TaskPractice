@@ -48,18 +48,26 @@ namespace BankStatementGenerator
             if (startIndex == -1) throw new Exception("File format not recognized");
             
             // Extract client information
-            data.ClientBasic = ExtractValue(lines, "Client Basic", startIndex, 20);
-            data.StatementPeriod = ExtractValue(lines, "Statement Period", startIndex, 20);
+            data.ClientBasic = CleanValue(ExtractValue(lines, "Client Basic", startIndex, 20));
+            data.StatementPeriod = CleanValue(ExtractValue(lines, "Statement Period", startIndex, 20));
             
             // Extract company name and address
             int nameIndex = lines.FindIndex(startIndex, line => line.Contains("DICKSON CONCEPTS"));
             if (nameIndex != -1)
             {
                 data.CompanyName = "DICKSON CONCEPTS (WHOLESALE) LIMITED";
-                data.Address = string.Join("\n", lines
+                
+                // Extract address lines and clean them
+                var addressLines = lines
                     .Skip(nameIndex + 1)
-                    .TakeWhile(line => !line.Contains("Account Number") && !string.IsNullOrWhiteSpace(line))
-                    .Select(line => line.Trim()));
+                    .TakeWhile(line => !line.Contains("Account Number") && 
+                                       !line.Contains("ACCOUNT SUMMARY") &&
+                                       !string.IsNullOrWhiteSpace(line))
+                    .Select(CleanValue)
+                    .Where(line => !Regex.IsMatch(line, @"^\d+$")) // Exlines with only digits
+                    .ToList();
+                
+                data.Address = string.Join("\n", addressLines);
             }
 
             // Extract account summary
@@ -73,11 +81,12 @@ namespace BankStatementGenerator
                 
                 if (!string.IsNullOrEmpty(accountLine))
                 {
+                    accountLine = CleanValue(accountLine);
                     var accountParts = accountLine.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
                     if (accountParts.Length >= 3)
                     {
                         data.AccountNumber = accountParts[0];
-                        data.Currency = "HKD"; // Always HKD based on image
+                        data.Currency = "HKD";
                         if (decimal.TryParse(accountParts[2], NumberStyles.Currency, 
                             CultureInfo.InvariantCulture, out decimal balance))
                         {
@@ -106,13 +115,16 @@ namespace BankStatementGenerator
                         if (string.IsNullOrWhiteSpace(line)) break;
                         if (line.Contains("Page")) continue;
                         
+                        // Clean the line before processing
+                        string cleanLine = CleanValue(line);
+                        
                         // Match date pattern (e.g., "01 OCT")
-                        var dateMatch = Regex.Match(line, @"(\d{2}\s[A-Z]{3})");
+                        var dateMatch = Regex.Match(cleanLine, @"(\d{2}\s[A-Z]{3})");
                         if (!dateMatch.Success) continue;
                         
                         string date = dateMatch.Value;
-                        string description = ExtractDescription(line, dateMatch.Index + dateMatch.Length);
-                        decimal balance = ExtractBalance(line);
+                        string description = ExtractDescription(cleanLine, dateMatch.Index + dateMatch.Length);
+                        decimal balance = ExtractBalance(cleanLine);
 
                         if (balance != 0)
                         {
@@ -125,7 +137,7 @@ namespace BankStatementGenerator
                         }
                         
                         // Check for closing balance
-                        if (line.Contains("Closing Balance"))
+                        if (cleanLine.Contains("Closing Balance"))
                         {
                             data.ClosingBalance = balance;
                         }
@@ -143,12 +155,16 @@ namespace BankStatementGenerator
                 .Take(range)
                 .FirstOrDefault(l => l.Contains(key));
             
-            if (line != null)
-            {
-                int startPos = line.IndexOf(key) + key.Length;
-                return line.Substring(startPos).Trim().Split(' ').FirstOrDefault()?.Trim();
-            }
-            return string.Empty;
+            return line != null ? line.Substring(line.IndexOf(key) + key.Length).Trim() : "";
+        }
+
+        static string CleanValue(string input)
+        {
+            // Remove trailing numbers like "21" at end of lines
+            string cleaned = Regex.Replace(input, @"\s*\d+\s*$", "");
+            // Remove any standalone long digit strings
+            cleaned = Regex.Replace(cleaned, @"\b\d{12,}\b", "");
+            return cleaned.Trim();
         }
 
         static string ExtractDescription(string line, int startIndex)
@@ -189,7 +205,7 @@ namespace BankStatementGenerator
                     SpacingAfter = 10
                 });
 
-                // Client Information - smaller font
+                // Client Information
                 var infoFont = new Font(baseFont, 9);
                 doc.Add(new Paragraph($"Client Basic: {data.ClientBasic}", infoFont));
                 doc.Add(new Paragraph($"Statement Period: {data.StatementPeriod}", infoFont));
@@ -197,7 +213,7 @@ namespace BankStatementGenerator
                 doc.Add(new Paragraph(data.Address, infoFont));
                 doc.Add(Chunk.NEWLINE);
 
-                // Account Summary Table - match image exactly
+                // Account Summary Table
                 var summaryTable = new PdfPTable(6);
                 summaryTable.WidthPercentage = 100;
                 summaryTable.SetWidths(new float[] { 2, 3, 1, 2, 2, 2 });
@@ -211,7 +227,7 @@ namespace BankStatementGenerator
                 AddTableHeader(summaryTable, "Exch Rate as at 31/10", headerFont);
                 AddTableHeader(summaryTable, "HKD Equivalent", headerFont);
 
-                // Table data - match image formatting
+                // Table data
                 var dataFont = new Font(baseFont, 9);
                 AddTableCell(summaryTable, "Current", dataFont);
                 AddTableCell(summaryTable, data.AccountNumber, dataFont);
@@ -223,12 +239,11 @@ namespace BankStatementGenerator
                 doc.Add(summaryTable);
                 doc.Add(Chunk.NEWLINE);
 
-                // Account Activities Header - match image
+                // Account Activities
                 var sectionFont = new Font(baseFont, 10, Font.BOLD);
                 doc.Add(new Paragraph($"CURRENT ACCOUNT   {data.AccountNumber}   HKD", sectionFont));
                 doc.Add(Chunk.NEWLINE);
 
-                // Account Activities Table - 5 columns as in image
                 var activityTable = new PdfPTable(5);
                 activityTable.WidthPercentage = 100;
                 activityTable.SetWidths(new float[] { 1.5f, 5f, 2f, 2f, 2f });
@@ -240,17 +255,17 @@ namespace BankStatementGenerator
                 AddTableHeader(activityTable, "Withdrawal", headerFont);
                 AddTableHeader(activityTable, "Balance", headerFont);
 
-                // Add activities - match image format
+                // Add activities
                 foreach (var activity in data.Activities)
                 {
                     AddTableCell(activityTable, activity.Date, dataFont);
                     AddTableCell(activityTable, activity.Description, dataFont);
-                    AddTableCell(activityTable, "0.00", dataFont, Element.ALIGN_RIGHT); // Deposit - 0.00 as in image
-                    AddTableCell(activityTable, "0.00", dataFont, Element.ALIGN_RIGHT); // Withdrawal - 0.00 as in image
+                    AddTableCell(activityTable, "0.00", dataFont, Element.ALIGN_RIGHT);
+                    AddTableCell(activityTable, "0.00", dataFont, Element.ALIGN_RIGHT);
                     AddTableCell(activityTable, activity.Balance.ToString("N2"), dataFont, Element.ALIGN_RIGHT);
                 }
 
-                // Add "Total Credit-Debit Amounts" row as in image
+                // Add "Total Credit-Debit Amounts" row
                 AddTableCell(activityTable, "", dataFont);
                 AddTableCell(activityTable, "Total Credit-Debit Amounts", headerFont);
                 AddTableCell(activityTable, "0.00", dataFont, Element.ALIGN_RIGHT);
@@ -261,7 +276,7 @@ namespace BankStatementGenerator
                 doc.Add(Chunk.NEWLINE);
                 doc.Add(Chunk.NEWLINE);
 
-                // Important Notice - match image exactly
+                // Important Notice
                 var noticeFont = new Font(baseFont, 9, Font.BOLD);
                 doc.Add(new Paragraph("IMPORTANT", noticeFont));
                 
