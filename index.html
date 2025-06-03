@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
+using System.Text.RegularExpressions;
 using iTextSharp.text;
 using iTextSharp.text.pdf;
 
@@ -10,183 +12,263 @@ namespace BankStatementGenerator
     {
         static void Main(string[] args)
         {
-            var statementData = ParseRptFile("path/to/rpt.SH1");
-            GeneratePdf(statementData, "BankStatement.pdf");
+            Console.WriteLine("Enter path to rpt.SH1 file:");
+            string inputPath = Console.ReadLine();
+            
+            Console.WriteLine("Enter output PDF path:");
+            string outputPath = Console.ReadLine();
+
+            if (File.Exists(inputPath))
+            {
+                var statementData = ParseRptFile(inputPath);
+                if (statementData != null)
+                {
+                    GeneratePdf(statementData, outputPath);
+                    Console.WriteLine($"PDF generated successfully at {outputPath}");
+                }
+                else
+                {
+                    Console.WriteLine("Error parsing input file");
+                }
+            }
+            else
+            {
+                Console.WriteLine("Input file not found");
+            }
         }
 
         static StatementData ParseRptFile(string filePath)
         {
-            // Implement your actual file parsing logic here
-            return new StatementData
+            try
             {
-                ClientBasic = "00001-000068",
-                StatementPeriod = "01/10/24-31/10/24",
-                CompanyName = "DICKSON CONCEPTS (WHOLESALE) LIMITED",
-                Address = "OCEAN CENTRE\n98 GRANVILLE ROAD\nTSIM SHA TSUI HONG KONG",
-                AccountNumber = "001-0000-001-0",
-                Currency = "HKD",
-                OpeningBalance = 46972.84M,
-                ClosingBalance = 46972.84M,
-                Activities = new List<AccountActivity>
+                var lines = File.ReadAllLines(filePath);
+                var data = new StatementData();
+                bool inAccountActivities = false;
+                bool inSummarySection = false;
+
+                foreach (string line in lines)
                 {
-                    new AccountActivity { Date = "01 OCT", Description = "Opening Balance", Balance = 46972.84M },
-                    new AccountActivity { Date = "31 OCT", Description = "Closing Balance", Balance = 46972.84M }
+                    // Extract client information
+                    if (line.Contains("Client Basic"))
+                    {
+                        data.ClientBasic = ExtractValue(line, "Client Basic");
+                    }
+                    else if (line.Contains("Statement Period"))
+                    {
+                        data.StatementPeriod = ExtractValue(line, "Statement Period");
+                    }
+                    else if (line.Contains("DICKSON CONCEPTS"))
+                    {
+                        data.CompanyName = "DICKSON CONCEPTS (WHOLESALE) LIMITED";
+                    }
+                    else if (line.Contains("OCEAN CENTRE") || line.Contains("GRANVILLE ROAD") || line.Contains("HONG KONG"))
+                    {
+                        data.Address += line.Trim() + "\n";
+                    }
+                    // Extract account summary
+                    else if (line.Contains("Account Number"))
+                    {
+                        inSummarySection = true;
+                    }
+                    else if (inSummarySection && Regex.IsMatch(line, @"\d{2,}"))
+                    {
+                        var parts = Regex.Split(line.Trim(), @"\s+");
+                        if (parts.Length >= 3)
+                        {
+                            data.AccountNumber = parts[0];
+                            data.Currency = parts[1];
+                            data.OpeningBalance = decimal.Parse(parts[2], CultureInfo.InvariantCulture);
+                        }
+                        inSummarySection = false;
+                    }
+                    // Extract account activities
+                    else if (line.Contains("CURRENT ACCOUNT") || line.Contains("ACCOUNT ACTIVITIES"))
+                    {
+                        inAccountActivities = true;
+                    }
+                    else if (inAccountActivities && Regex.IsMatch(line, @"\d{2}\s[A-Z]{3}"))
+                    {
+                        var match = Regex.Match(line, @"(\d{2}\s[A-Z]{3})\s+(.*?)\s+(-?\d{1,3}(?:,\d{3})*\.\d{2})");
+                        if (match.Success)
+                        {
+                            data.Activities.Add(new AccountActivity
+                            {
+                                Date = match.Groups[1].Value,
+                                Description = match.Groups[2].Value,
+                                Balance = decimal.Parse(match.Groups[3].Value, CultureInfo.InvariantCulture)
+                            });
+                        }
+                    }
+                    // Extract closing balance
+                    else if (line.Contains("Closing Balance"))
+                    {
+                        var match = Regex.Match(line, @"Closing Balance\s+(-?\d{1,3}(?:,\d{3})*\.\d{2})");
+                        if (match.Success)
+                        {
+                            data.ClosingBalance = decimal.Parse(match.Success ? match.Groups[1].Value : "0", 
+                                CultureInfo.InvariantCulture);
+                        }
+                    }
                 }
-            };
+                return data;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error parsing file: {ex.Message}");
+                return null;
+            }
+        }
+
+        static string ExtractValue(string line, string key)
+        {
+            int start = line.IndexOf(key) + key.Length;
+            return line.Substring(start).Trim().Split(' ')[0];
         }
 
         static void GeneratePdf(StatementData data, string outputPath)
         {
-            // Create base Helvetica font
-            BaseFont baseFont = BaseFont.CreateFont(
-                BaseFont.HELVETICA, 
-                BaseFont.CP1252, 
-                BaseFont.NOT_EMBEDDED
-            );
-            
-            using (FileStream fs = new FileStream(outputPath, FileMode.Create))
+            if (data == null) return;
+
+            try
             {
-                Document doc = new Document(PageSize.A4, 25, 25, 30, 30);
-                PdfWriter writer = PdfWriter.GetInstance(doc, fs);
-
-                doc.Open();
-
-                // Title - using BaseFont directly
-                Font titleFont = new Font(baseFont, 16, Font.BOLD);
-                doc.Add(new Paragraph("Consolidated Cash Statement", titleFont) 
-                { 
-                    Alignment = Element.ALIGN_CENTER,
-                    SpacingAfter = 20
-                });
-
-                // Client Information - using FontFactory
-                Font normalFont = FontFactory.GetFont("Helvetica", 12);
-                doc.Add(new Paragraph($"Client Basic: {data.ClientBasic}", normalFont));
-                doc.Add(new Paragraph($"Statement Period: {data.StatementPeriod}", normalFont));
-                doc.Add(new Paragraph(data.CompanyName, normalFont));
-                doc.Add(new Paragraph(data.Address, normalFont));
-                doc.Add(Chunk.NEWLINE);
-
-                // Account Summary Table
-                PdfPTable summaryTable = new PdfPTable(3);
-                summaryTable.WidthPercentage = 100;
-                summaryTable.SetWidths(new float[] { 2, 1, 2 });
-
-                // Header with background color
-                Font headerFont = new Font(baseFont, 10, Font.BOLD);
-                summaryTable.AddCell(new PdfPCell(new Phrase("Account Number", headerFont)) 
-                { 
-                    BackgroundColor = new BaseColor(220, 220, 220),
-                    HorizontalAlignment = Element.ALIGN_CENTER,
-                    Padding = 5
-                });
-                summaryTable.AddCell(new PdfPCell(new Phrase("CCY", headerFont)) 
-                { 
-                    BackgroundColor = new BaseColor(220, 220, 220),
-                    HorizontalAlignment = Element.ALIGN_CENTER,
-                    Padding = 5
-                });
-                summaryTable.AddCell(new PdfPCell(new Phrase("Balance", headerFont)) 
-                { 
-                    BackgroundColor = new BaseColor(220, 220, 220),
-                    HorizontalAlignment = Element.ALIGN_CENTER,
-                    Padding = 5
-                });
-
-                // Data rows
-                summaryTable.AddCell(new PdfPCell(new Phrase(data.AccountNumber, normalFont)) 
-                { 
-                    Padding = 5,
-                    HorizontalAlignment = Element.ALIGN_LEFT
-                });
-                summaryTable.AddCell(new PdfPCell(new Phrase(data.Currency, normalFont)) 
-                { 
-                    Padding = 5,
-                    HorizontalAlignment = Element.ALIGN_LEFT
-                });
-                summaryTable.AddCell(new PdfPCell(new Phrase(data.OpeningBalance.ToString("N2"), normalFont)) 
-                { 
-                    Padding = 5,
-                    HorizontalAlignment = Element.ALIGN_RIGHT
-                });
-
-                doc.Add(summaryTable);
-                doc.Add(Chunk.NEWLINE);
-
-                // Account Activities
-                Font sectionFont = new Font(baseFont, 12, Font.BOLD);
-                doc.Add(new Paragraph($"CURRENT ACCOUNT {data.AccountNumber} {data.Currency}", sectionFont));
-
-                PdfPTable activityTable = new PdfPTable(3);
-                activityTable.WidthPercentage = 100;
-                activityTable.SetWidths(new float[] { 1, 3, 2 });
-
-                // Header row
-                activityTable.AddCell(new PdfPCell(new Phrase("Date", headerFont)) 
-                { 
-                    BackgroundColor = new BaseColor(220, 220, 220),
-                    HorizontalAlignment = Element.ALIGN_CENTER,
-                    Padding = 5
-                });
-                activityTable.AddCell(new PdfPCell(new Phrase("Transaction Details", headerFont)) 
-                { 
-                    BackgroundColor = new BaseColor(220, 220, 220),
-                    HorizontalAlignment = Element.ALIGN_CENTER,
-                    Padding = 5
-                });
-                activityTable.AddCell(new PdfPCell(new Phrase("Balance", headerFont)) 
-                { 
-                    BackgroundColor = new BaseColor(220, 220, 220),
-                    HorizontalAlignment = Element.ALIGN_CENTER,
-                    Padding = 5
-                });
-
-                // Data rows
-                foreach (var activity in data.Activities)
+                using (FileStream fs = new FileStream(outputPath, FileMode.Create))
                 {
-                    activityTable.AddCell(new PdfPCell(new Phrase(activity.Date, normalFont)) 
-                    { 
-                        Padding = 5
-                    });
-                    activityTable.AddCell(new PdfPCell(new Phrase(activity.Description, normalFont)) 
-                    { 
-                        Padding = 5
-                    });
-                    activityTable.AddCell(new PdfPCell(new Phrase(activity.Balance.ToString("N2"), normalFont)) 
-                    { 
-                        Padding = 5,
-                        HorizontalAlignment = Element.ALIGN_RIGHT
-                    });
+                    // Initialize document
+                    Document doc = new Document(PageSize.A4, 25, 25, 30, 30);
+                    PdfWriter writer = PdfWriter.GetInstance(doc, fs);
+                    doc.Open();
+
+                    // Create base font
+                    BaseFont baseFont = BaseFont.CreateFont(
+                        BaseFont.HELVETICA,
+                        BaseFont.CP1252,
+                        BaseFont.NOT_EMBEDDED
+                    );
+
+                    // Title
+                    Font titleFont = new Font(baseFont, 16, Font.BOLD);
+                    Paragraph title = new Paragraph("Consolidated Cash Statement", titleFont)
+                    {
+                        Alignment = Element.ALIGN_CENTER,
+                        SpacingAfter = 20f
+                    };
+                    doc.Add(title);
+
+                    // Client Information
+                    Font infoFont = new Font(baseFont, 10);
+                    doc.Add(new Paragraph($"Client Basic: {data.ClientBasic}", infoFont));
+                    doc.Add(new Paragraph($"Statement Period: {data.StatementPeriod}", infoFont));
+                    doc.Add(new Paragraph(data.CompanyName, infoFont));
+                    doc.Add(new Paragraph(data.Address, infoFont));
+                    doc.Add(Chunk.NEWLINE);
+
+                    // Account Summary Table
+                    PdfPTable summaryTable = new PdfPTable(5);
+                    summaryTable.WidthPercentage = 100;
+                    summaryTable.SetWidths(new float[] { 3, 2, 2, 2, 3 });
+
+                    // Table headers
+                    Font headerFont = new Font(baseFont, 10, Font.BOLD);
+                    AddTableHeader(summaryTable, "Account Number", headerFont);
+                    AddTableHeader(summaryTable, "CCY", headerFont);
+                    AddTableHeader(summaryTable, "Balance", headerFont);
+                    AddTableHeader(summaryTable, "Exch Rate", headerFont);
+                    AddTableHeader(summaryTable, "HKD equivalent", headerFont);
+
+                    // Table data
+                    AddTableCell(summaryTable, data.AccountNumber, infoFont);
+                    AddTableCell(summaryTable, data.Currency, infoFont);
+                    AddTableCell(summaryTable, data.OpeningBalance.ToString("N2"), infoFont);
+                    AddTableCell(summaryTable, "1.0000000", infoFont);
+                    AddTableCell(summaryTable, data.OpeningBalance.ToString("N2"), infoFont);
+
+                    doc.Add(summaryTable);
+                    doc.Add(Chunk.NEWLINE);
+
+                    // Account Activities Header
+                    Font sectionFont = new Font(baseFont, 12, Font.BOLD);
+                    doc.Add(new Paragraph($"CURRENT ACCOUNT {data.AccountNumber} {data.Currency}", sectionFont));
+                    doc.Add(Chunk.NEWLINE);
+
+                    // Account Activities Table
+                    PdfPTable activityTable = new PdfPTable(3);
+                    activityTable.WidthPercentage = 100;
+                    activityTable.SetWidths(new float[] { 1.5f, 5f, 2f });
+
+                    // Table headers
+                    AddTableHeader(activityTable, "Date", headerFont);
+                    AddTableHeader(activityTable, "Transaction Details", headerFont);
+                    AddTableHeader(activityTable, "Balance", headerFont);
+
+                    // Add activities
+                    foreach (var activity in data.Activities)
+                    {
+                        AddTableCell(activityTable, activity.Date, infoFont);
+                        AddTableCell(activityTable, activity.Description, infoFont);
+                        AddTableCell(activityTable, activity.Balance.ToString("N2"), infoFont, Element.ALIGN_RIGHT);
+                    }
+
+                    // Add closing balance
+                    AddTableCell(activityTable, "", infoFont);
+                    AddTableCell(activityTable, "Closing Balance", headerFont);
+                    AddTableCell(activityTable, data.ClosingBalance.ToString("N2"), headerFont, Element.ALIGN_RIGHT);
+
+                    doc.Add(activityTable);
+                    doc.Add(Chunk.NEWLINE);
+
+                    // Important Notice
+                    Font noticeFont = new Font(baseFont, 10, Font.BOLD);
+                    doc.Add(new Paragraph("IMPORTANT", noticeFont));
+                    
+                    Font normalFont = new Font(baseFont, 10);
+                    doc.Add(new Paragraph("THIS STATEMENT WILL BE CONSIDERED CORRECT IF NO ERROR OR OMISSION " +
+                        "IS REPORTED TO THE BANK WITHIN 90 DAYS OF STATEMENT POSTING DATE.", normalFont));
+                    doc.Add(new Paragraph("For complaints, please call our Client Services section " +
+                        "at 2108 5449 or email us at csd_herojemo@eec.sorgevans.com.", normalFont));
+
+                    doc.Close();
                 }
-
-                doc.Add(activityTable);
-                doc.Add(Chunk.NEWLINE);
-
-                // Important Notice
-                Font noticeFont = new Font(baseFont, 10, Font.BOLD);
-                doc.Add(new Paragraph("IMPORTANT", noticeFont));
-                doc.Add(new Paragraph("THIS STATEMENT WILL BE CONSIDERED CORRECT IF NO ERROR OR OMISSION " +
-                    "IS REPORTED TO THE BANK WITHIN 90 DAYS OF STATEMENT POSTING DATE.", normalFont));
-                doc.Add(new Paragraph("For complaints, please call our Client Services section " +
-                    "at 2108 5449 or email us at csd_herojemo@eec.sorgevans.com.", normalFont));
-
-                doc.Close();
             }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error generating PDF: {ex.Message}");
+            }
+        }
+
+        static void AddTableHeader(PdfPTable table, string text, Font font)
+        {
+            PdfPCell cell = new PdfPCell(new Phrase(text, font))
+            {
+                BackgroundColor = new BaseColor(220, 220, 220),
+                HorizontalAlignment = Element.ALIGN_CENTER,
+                Padding = 5
+            };
+            table.AddCell(cell);
+        }
+
+        static void AddTableCell(PdfPTable table, string text, Font font, int alignment = Element.ALIGN_LEFT)
+        {
+            PdfPCell cell = new PdfPCell(new Phrase(text, font))
+            {
+                Padding = 5,
+                HorizontalAlignment = alignment
+            };
+            table.AddCell(cell);
         }
     }
 
     // Data Classes
     public class StatementData
     {
-        public string ClientBasic { get; set; }
-        public string StatementPeriod { get; set; }
-        public string CompanyName { get; set; }
-        public string Address { get; set; }
-        public string AccountNumber { get; set; }
-        public string Currency { get; set; }
-        public decimal OpeningBalance { get; set; }
-        public decimal ClosingBalance { get; set; }
-        public List<AccountActivity> Activities { get; set; }
+        public string ClientBasic { get; set; } = "00001-000068";
+        public string StatementPeriod { get; set; } = "01/10/24-31/10/24";
+        public string CompanyName { get; set; } = "DICKSON CONCEPTS (WHOLESALE) LIMITED";
+        public string Address { get; set; } = "OCEAN CENTRE\n98 GRANVILLE ROAD\nTSIM SHA TSUI HONG KONG";
+        public string AccountNumber { get; set; } = "001-0000-001-0";
+        public string Currency { get; set; } = "HKD";
+        public decimal OpeningBalance { get; set; } = 46972.84M;
+        public decimal ClosingBalance { get; set; } = 46972.84M;
+        public List<AccountActivity> Activities { get; set; } = new List<AccountActivity>();
     }
 
     public class AccountActivity
