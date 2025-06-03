@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Linq;
+using System.Text;
 using System.Text.RegularExpressions;
 using iTextSharp.text;
 using iTextSharp.text.pdf;
@@ -20,15 +22,15 @@ namespace BankStatementGenerator
 
             if (File.Exists(inputPath))
             {
-                var statementData = ParseRptFile(inputPath);
-                if (statementData != null)
+                try
                 {
+                    var statementData = ParseRptFile(inputPath);
                     GeneratePdf(statementData, outputPath);
                     Console.WriteLine($"PDF generated successfully at {outputPath}");
                 }
-                else
+                catch (Exception ex)
                 {
-                    Console.WriteLine("Error parsing input file");
+                    Console.WriteLine($"Error: {ex.Message}");
                 }
             }
             else
@@ -39,205 +41,233 @@ namespace BankStatementGenerator
 
         static StatementData ParseRptFile(string filePath)
         {
-            try
-            {
-                var lines = File.ReadAllLines(filePath);
-                var data = new StatementData();
-                bool inAccountActivities = false;
-                bool inSummarySection = false;
+            var data = new StatementData();
+            var lines = File.ReadAllLines(filePath).ToList();
 
-                foreach (string line in lines)
+            // Find start of relevant data
+            int startIndex = lines.FindIndex(line => line.Contains("Consolidated Cash Statement"));
+            if (startIndex == -1) throw new Exception("File format not recognized");
+            
+            // Extract client information
+            data.ClientBasic = ExtractValue(lines, "Client Basic", startIndex, 20);
+            data.StatementPeriod = ExtractValue(lines, "Statement Period", startIndex, 20);
+            
+            // Extract company name and address
+            int nameIndex = lines.FindIndex(startIndex, line => line.Contains("DICKSON CONCEPTS"));
+            if (nameIndex != -1)
+            {
+                data.CompanyName = "DICKSON CONCEPTS (WHOLESALE) LIMITED";
+                data.Address = string.Join("\n", lines
+                    .Skip(nameIndex + 1)
+                    .TakeWhile(line => !line.Contains("Account Number") && !string.IsNullOrWhiteSpace(line))
+                    .Select(line => line.Trim()));
+            }
+
+            // Extract account summary
+            int accountIndex = lines.FindIndex(startIndex, line => line.Contains("Account Number"));
+            if (accountIndex != -1)
+            {
+                // Find the next line with numeric data
+                var accountLine = lines
+                    .Skip(accountIndex + 1)
+                    .FirstOrDefault(line => Regex.IsMatch(line, @"\d"));
+                
+                if (!string.IsNullOrEmpty(accountLine))
                 {
-                    // Extract client information
-                    if (line.Contains("Client Basic"))
+                    var accountParts = accountLine.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                    if (accountParts.Length >= 3)
                     {
-                        data.ClientBasic = ExtractValue(line, "Client Basic");
-                    }
-                    else if (line.Contains("Statement Period"))
-                    {
-                        data.StatementPeriod = ExtractValue(line, "Statement Period");
-                    }
-                    else if (line.Contains("DICKSON CONCEPTS"))
-                    {
-                        data.CompanyName = "DICKSON CONCEPTS (WHOLESALE) LIMITED";
-                    }
-                    else if (line.Contains("OCEAN CENTRE") || line.Contains("GRANVILLE ROAD") || line.Contains("HONG KONG"))
-                    {
-                        data.Address += line.Trim() + "\n";
-                    }
-                    // Extract account summary
-                    else if (line.Contains("Account Number"))
-                    {
-                        inSummarySection = true;
-                    }
-                    else if (inSummarySection && Regex.IsMatch(line, @"\d{2,}"))
-                    {
-                        var parts = Regex.Split(line.Trim(), @"\s+");
-                        if (parts.Length >= 3)
+                        data.AccountNumber = accountParts[0];
+                        data.Currency = accountParts[1];
+                        if (decimal.TryParse(accountParts[2], NumberStyles.Currency, 
+                            CultureInfo.InvariantCulture, out decimal balance))
                         {
-                            data.AccountNumber = parts[0];
-                            data.Currency = parts[1];
-                            data.OpeningBalance = decimal.Parse(parts[2], CultureInfo.InvariantCulture);
-                        }
-                        inSummarySection = false;
-                    }
-                    // Extract account activities
-                    else if (line.Contains("CURRENT ACCOUNT") || line.Contains("ACCOUNT ACTIVITIES"))
-                    {
-                        inAccountActivities = true;
-                    }
-                    else if (inAccountActivities && Regex.IsMatch(line, @"\d{2}\s[A-Z]{3}"))
-                    {
-                        var match = Regex.Match(line, @"(\d{2}\s[A-Z]{3})\s+(.*?)\s+(-?\d{1,3}(?:,\d{3})*\.\d{2})");
-                        if (match.Success)
-                        {
-                            data.Activities.Add(new AccountActivity
-                            {
-                                Date = match.Groups[1].Value,
-                                Description = match.Groups[2].Value,
-                                Balance = decimal.Parse(match.Groups[3].Value, CultureInfo.InvariantCulture)
-                            });
-                        }
-                    }
-                    // Extract closing balance
-                    else if (line.Contains("Closing Balance"))
-                    {
-                        var match = Regex.Match(line, @"Closing Balance\s+(-?\d{1,3}(?:,\d{3})*\.\d{2})");
-                        if (match.Success)
-                        {
-                            data.ClosingBalance = decimal.Parse(match.Success ? match.Groups[1].Value : "0", 
-                                CultureInfo.InvariantCulture);
+                            data.OpeningBalance = balance;
+                            data.ClosingBalance = balance; // Default to opening balance
                         }
                     }
                 }
-                return data;
             }
-            catch (Exception ex)
+
+            // Extract account activities
+            int activitiesIndex = lines.FindIndex(startIndex, line => 
+                line.Contains("ACCOUNT ACTIVITIES") || line.Contains("CURRENT ACCOUNT"));
+            
+            if (activitiesIndex != -1)
             {
-                Console.WriteLine($"Error parsing file: {ex.Message}");
-                return null;
+                // Find the transaction table start
+                int tableStart = lines.FindIndex(activitiesIndex, line => 
+                    Regex.IsMatch(line, @"\d{2}\s[A-Z]{3}"));
+                
+                if (tableStart != -1)
+                {
+                    // Process transaction lines
+                    foreach (var line in lines.Skip(tableStart))
+                    {
+                        if (string.IsNullOrWhiteSpace(line)) break;
+                        if (line.Contains("Page")) continue;
+                        
+                        // Match date pattern (e.g., "01 OCT")
+                        var dateMatch = Regex.Match(line, @"(\d{2}\s[A-Z]{3})");
+                        if (!dateMatch.Success) continue;
+                        
+                        string date = dateMatch.Value;
+                        string description = ExtractDescription(line, dateMatch.Index + dateMatch.Length);
+                        decimal balance = ExtractBalance(line);
+
+                        if (balance != 0)
+                        {
+                            data.Activities.Add(new AccountActivity
+                            {
+                                Date = date,
+                                Description = description,
+                                Balance = balance
+                            });
+                        }
+                        
+                        // Check for closing balance
+                        if (line.Contains("Closing Balance"))
+                        {
+                            data.ClosingBalance = balance;
+                        }
+                    }
+                }
             }
+
+            return data;
         }
 
-        static string ExtractValue(string line, string key)
+        static string ExtractValue(List<string> lines, string key, int startIndex, int range)
         {
-            int start = line.IndexOf(key) + key.Length;
-            return line.Substring(start).Trim().Split(' ')[0];
+            var line = lines
+                .Skip(startIndex)
+                .Take(range)
+                .FirstOrDefault(l => l.Contains(key));
+            
+            if (line != null)
+            {
+                int startPos = line.IndexOf(key) + key.Length;
+                return line.Substring(startPos).Trim().Split(' ').FirstOrDefault()?.Trim();
+            }
+            return string.Empty;
+        }
+
+        static string ExtractDescription(string line, int startIndex)
+        {
+            // Find the next numeric value after the description
+            var match = Regex.Match(line.Substring(startIndex), @"(.+?)(\d[\d,.]*\d|\d)");
+            return match.Success ? match.Groups[1].Value.Trim() : line.Substring(startIndex).Trim();
+        }
+
+        static decimal ExtractBalance(string line)
+        {
+            // Find the last numeric value in the line
+            var matches = Regex.Matches(line, @"([\d,]+\.\d{2})");
+            return matches.Count > 0 ? 
+                decimal.Parse(matches[^1].Value, NumberStyles.Currency, CultureInfo.InvariantCulture) : 0;
         }
 
         static void GeneratePdf(StatementData data, string outputPath)
         {
-            if (data == null) return;
-
-            try
+            using (var fs = new FileStream(outputPath, FileMode.Create))
             {
-                using (FileStream fs = new FileStream(outputPath, FileMode.Create))
+                var doc = new Document(PageSize.A4, 25, 25, 30, 30);
+                var writer = PdfWriter.GetInstance(doc, fs);
+                doc.Open();
+
+                // Base font setup
+                var baseFont = BaseFont.CreateFont(
+                    BaseFont.HELVETICA, 
+                    BaseFont.CP1252, 
+                    BaseFont.NOT_EMBEDDED
+                );
+
+                // Title
+                var titleFont = new Font(baseFont, 16, Font.BOLD);
+                doc.Add(new Paragraph("Consolidated Cash Statement", titleFont) 
+                { 
+                    Alignment = Element.ALIGN_CENTER,
+                    SpacingAfter = 20
+                });
+
+                // Client Information
+                var infoFont = new Font(baseFont, 10);
+                doc.Add(new Paragraph($"Client Basic: {data.ClientBasic}", infoFont));
+                doc.Add(new Paragraph($"Statement Period: {data.StatementPeriod}", infoFont));
+                doc.Add(new Paragraph(data.CompanyName, infoFont));
+                doc.Add(new Paragraph(data.Address, infoFont));
+                doc.Add(Chunk.NEWLINE);
+
+                // Account Summary Table
+                var summaryTable = new PdfPTable(5);
+                summaryTable.WidthPercentage = 100;
+                summaryTable.SetWidths(new float[] { 3, 2, 2, 2, 3 });
+
+                // Table headers
+                var headerFont = new Font(baseFont, 10, Font.BOLD);
+                AddTableHeader(summaryTable, "Account Number", headerFont);
+                AddTableHeader(summaryTable, "CCY", headerFont);
+                AddTableHeader(summaryTable, "Balance", headerFont);
+                AddTableHeader(summaryTable, "Exch Rate", headerFont);
+                AddTableHeader(summaryTable, "HKD equivalent", headerFont);
+
+                // Table data
+                AddTableCell(summaryTable, data.AccountNumber, infoFont);
+                AddTableCell(summaryTable, data.Currency, infoFont);
+                AddTableCell(summaryTable, data.OpeningBalance.ToString("N2"), infoFont);
+                AddTableCell(summaryTable, "1.0000000", infoFont);
+                AddTableCell(summaryTable, data.OpeningBalance.ToString("N2"), infoFont);
+
+                doc.Add(summaryTable);
+                doc.Add(Chunk.NEWLINE);
+
+                // Account Activities
+                var sectionFont = new Font(baseFont, 12, Font.BOLD);
+                doc.Add(new Paragraph($"CURRENT ACCOUNT {data.AccountNumber} {data.Currency}", sectionFont));
+                doc.Add(Chunk.NEWLINE);
+
+                var activityTable = new PdfPTable(3);
+                activityTable.WidthPercentage = 100;
+                activityTable.SetWidths(new float[] { 1.5f, 5f, 2f });
+
+                // Table headers
+                AddTableHeader(activityTable, "Date", headerFont);
+                AddTableHeader(activityTable, "Transaction Details", headerFont);
+                AddTableHeader(activityTable, "Balance", headerFont);
+
+                // Add activities
+                foreach (var activity in data.Activities)
                 {
-                    // Initialize document
-                    Document doc = new Document(PageSize.A4, 25, 25, 30, 30);
-                    PdfWriter writer = PdfWriter.GetInstance(doc, fs);
-                    doc.Open();
-
-                    // Create base font
-                    BaseFont baseFont = BaseFont.CreateFont(
-                        BaseFont.HELVETICA,
-                        BaseFont.CP1252,
-                        BaseFont.NOT_EMBEDDED
-                    );
-
-                    // Title
-                    Font titleFont = new Font(baseFont, 16, Font.BOLD);
-                    Paragraph title = new Paragraph("Consolidated Cash Statement", titleFont)
-                    {
-                        Alignment = Element.ALIGN_CENTER,
-                        SpacingAfter = 20f
-                    };
-                    doc.Add(title);
-
-                    // Client Information
-                    Font infoFont = new Font(baseFont, 10);
-                    doc.Add(new Paragraph($"Client Basic: {data.ClientBasic}", infoFont));
-                    doc.Add(new Paragraph($"Statement Period: {data.StatementPeriod}", infoFont));
-                    doc.Add(new Paragraph(data.CompanyName, infoFont));
-                    doc.Add(new Paragraph(data.Address, infoFont));
-                    doc.Add(Chunk.NEWLINE);
-
-                    // Account Summary Table
-                    PdfPTable summaryTable = new PdfPTable(5);
-                    summaryTable.WidthPercentage = 100;
-                    summaryTable.SetWidths(new float[] { 3, 2, 2, 2, 3 });
-
-                    // Table headers
-                    Font headerFont = new Font(baseFont, 10, Font.BOLD);
-                    AddTableHeader(summaryTable, "Account Number", headerFont);
-                    AddTableHeader(summaryTable, "CCY", headerFont);
-                    AddTableHeader(summaryTable, "Balance", headerFont);
-                    AddTableHeader(summaryTable, "Exch Rate", headerFont);
-                    AddTableHeader(summaryTable, "HKD equivalent", headerFont);
-
-                    // Table data
-                    AddTableCell(summaryTable, data.AccountNumber, infoFont);
-                    AddTableCell(summaryTable, data.Currency, infoFont);
-                    AddTableCell(summaryTable, data.OpeningBalance.ToString("N2"), infoFont);
-                    AddTableCell(summaryTable, "1.0000000", infoFont);
-                    AddTableCell(summaryTable, data.OpeningBalance.ToString("N2"), infoFont);
-
-                    doc.Add(summaryTable);
-                    doc.Add(Chunk.NEWLINE);
-
-                    // Account Activities Header
-                    Font sectionFont = new Font(baseFont, 12, Font.BOLD);
-                    doc.Add(new Paragraph($"CURRENT ACCOUNT {data.AccountNumber} {data.Currency}", sectionFont));
-                    doc.Add(Chunk.NEWLINE);
-
-                    // Account Activities Table
-                    PdfPTable activityTable = new PdfPTable(3);
-                    activityTable.WidthPercentage = 100;
-                    activityTable.SetWidths(new float[] { 1.5f, 5f, 2f });
-
-                    // Table headers
-                    AddTableHeader(activityTable, "Date", headerFont);
-                    AddTableHeader(activityTable, "Transaction Details", headerFont);
-                    AddTableHeader(activityTable, "Balance", headerFont);
-
-                    // Add activities
-                    foreach (var activity in data.Activities)
-                    {
-                        AddTableCell(activityTable, activity.Date, infoFont);
-                        AddTableCell(activityTable, activity.Description, infoFont);
-                        AddTableCell(activityTable, activity.Balance.ToString("N2"), infoFont, Element.ALIGN_RIGHT);
-                    }
-
-                    // Add closing balance
-                    AddTableCell(activityTable, "", infoFont);
-                    AddTableCell(activityTable, "Closing Balance", headerFont);
-                    AddTableCell(activityTable, data.ClosingBalance.ToString("N2"), headerFont, Element.ALIGN_RIGHT);
-
-                    doc.Add(activityTable);
-                    doc.Add(Chunk.NEWLINE);
-
-                    // Important Notice
-                    Font noticeFont = new Font(baseFont, 10, Font.BOLD);
-                    doc.Add(new Paragraph("IMPORTANT", noticeFont));
-                    
-                    Font normalFont = new Font(baseFont, 10);
-                    doc.Add(new Paragraph("THIS STATEMENT WILL BE CONSIDERED CORRECT IF NO ERROR OR OMISSION " +
-                        "IS REPORTED TO THE BANK WITHIN 90 DAYS OF STATEMENT POSTING DATE.", normalFont));
-                    doc.Add(new Paragraph("For complaints, please call our Client Services section " +
-                        "at 2108 5449 or email us at csd_herojemo@eec.sorgevans.com.", normalFont));
-
-                    doc.Close();
+                    AddTableCell(activityTable, activity.Date, infoFont);
+                    AddTableCell(activityTable, activity.Description, infoFont);
+                    AddTableCell(activityTable, activity.Balance.ToString("N2"), infoFont, Element.ALIGN_RIGHT);
                 }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error generating PDF: {ex.Message}");
+
+                // Add closing balance
+                AddTableCell(activityTable, "", infoFont);
+                AddTableCell(activityTable, "Closing Balance", headerFont);
+                AddTableCell(activityTable, data.ClosingBalance.ToString("N2"), headerFont, Element.ALIGN_RIGHT);
+
+                doc.Add(activityTable);
+                doc.Add(Chunk.NEWLINE);
+
+                // Important Notice
+                var noticeFont = new Font(baseFont, 10, Font.BOLD);
+                doc.Add(new Paragraph("IMPORTANT", noticeFont));
+                
+                var normalFont = new Font(baseFont, 10);
+                doc.Add(new Paragraph("THIS STATEMENT WILL BE CONSIDERED CORRECT IF NO ERROR OR OMISSION " +
+                    "IS REPORTED TO THE BANK WITHIN 90 DAYS OF STATEMENT POSTING DATE.", normalFont));
+                doc.Add(new Paragraph("For complaints, please call our Client Services section " +
+                    "at 2108 5449 or email us at csd_herojemo@eec.sorgevans.com.", normalFont));
+
+                doc.Close();
             }
         }
 
         static void AddTableHeader(PdfPTable table, string text, Font font)
         {
-            PdfPCell cell = new PdfPCell(new Phrase(text, font))
+            var cell = new PdfPCell(new Phrase(text, font))
             {
                 BackgroundColor = new BaseColor(220, 220, 220),
                 HorizontalAlignment = Element.ALIGN_CENTER,
@@ -248,7 +278,7 @@ namespace BankStatementGenerator
 
         static void AddTableCell(PdfPTable table, string text, Font font, int alignment = Element.ALIGN_LEFT)
         {
-            PdfPCell cell = new PdfPCell(new Phrase(text, font))
+            var cell = new PdfPCell(new Phrase(text, font))
             {
                 Padding = 5,
                 HorizontalAlignment = alignment
