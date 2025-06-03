@@ -1,51 +1,179 @@
-<!DOCTYPE html>
-<html lang="en">
-    <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Document</title>
-        <style>
-            h1 {
-                text-align: center;
+using Microsoft.VisualBasic;
+using System;
+using System.IO;
+using System.Collections.Generic;
+using System.Windows.Forms;
+using iTextSharp.text;
+using iTextSharp.text.pdf;
+
+class Program
+{
+    static void Main()
+    {
+        string inputPath = @"C:\Path\To\input.txt";     // 👈 Your .txt file here
+        string outputPath = @"C:\Path\To\output.pdf";   // 👈 Output path
+
+        List<string> lines = new List<string>(File.ReadAllLines(inputPath));
+
+        string clientBasic = "", statementPeriod = "", footerNote = "";
+        List<string> addressLines = new();
+        List<string[]> accountSummaryRows = new();
+        List<string[]> accountActivityRows = new();
+
+        bool readingAddress = false, readingSummary = false, readingActivity = false;
+
+        foreach (string rawLine in lines)
+        {
+            string line = rawLine.Trim();
+
+            if (line.StartsWith("Client Basic:"))
+            {
+                clientBasic = line;
+                readingAddress = false;
             }
-            table,
-            tr,
-            td,
-            th {
-                border: 1px solid black;
-                border-collapse: collapse;
-                width: 500px;
-                text-align: center;
+            else if (line.StartsWith("Statement Period:"))
+            {
+                statementPeriod = line;
+                readingAddress = true;
             }
-            table{
-                margin-left: auto;
-                margin-right: auto;
+            else if (line.StartsWith("ACCOUNT SUMMARY"))
+            {
+                readingAddress = false;
+                readingSummary = true;
+                continue;
             }
-        </style>
-    </head>
-    <body>
-        <h1>HTML tasks</h1>
-        <table>
-            <tr>
-                <th>Task Name</th>
-                <th>Task Link</th>
-            </tr>
-            <tr>
-                <td>Task 1</td>
-                <td><a href="task1.html">task 1 link</a></td>
-            </tr>
-            <tr>
-                <td>Task 2</td>
-                <td><a href="task2.html">task 2 link</a></td>
-            </tr>
-            <tr>
-                <td>Task 3</td>
-                <td><a href="task3.html">task 3 link</a></td>
-            </tr>
-            <tr>
-                <td>Task 4</td>
-                <td><a href="task4.html">task 4 link</a></td>
-            </tr>
-        </table>
-    </body>
-</html>
+            else if (line.StartsWith("ACCOUNT ACTIVITIES"))
+            {
+                readingSummary = false;
+                readingActivity = true;
+                continue;
+            }
+            else if (line.StartsWith("THIS STATEMENT"))
+            {
+                readingActivity = false;
+                footerNote = line;
+            }
+            else if (readingAddress)
+            {
+                addressLines.Add(line);
+            }
+            else if (readingSummary && !line.StartsWith("Account Type"))
+            {
+                if (!string.IsNullOrWhiteSpace(line))
+                    accountSummaryRows.Add(SplitByMultipleSpaces(line));
+            }
+            else if (readingActivity && !line.StartsWith("Date"))
+            {
+                if (!string.IsNullOrWhiteSpace(line))
+                    accountActivityRows.Add(SplitByMultipleSpaces(line));
+            }
+        }
+
+        // Generate PDF
+        using (FileStream fs = new FileStream(outputPath, FileMode.Create, FileAccess.Write, FileShare.None))
+        {
+            Document doc = new Document(PageSize.A4, 36, 36, 36, 36);
+            PdfWriter.GetInstance(doc, fs);
+            doc.Open();
+
+            // Fonts
+            var titleFont = FontFactory.GetFont("Arial", 16, Font.BOLD);
+            var normalFont = FontFactory.GetFont("Arial", 10, Font.NORMAL);
+            var boldFont = FontFactory.GetFont("Arial", 10, Font.BOLD);
+            var italicFont = FontFactory.GetFont("Arial", 9, Font.ITALIC);
+
+            doc.Add(new Paragraph("Consolidated Cash Statement", titleFont));
+            doc.Add(new Chunk("\n"));
+
+            // Header
+            PdfPTable headerTable = new PdfPTable(2);
+            headerTable.WidthPercentage = 100;
+            headerTable.SetWidths(new float[] { 1, 1 });
+            headerTable.AddCell(CreateCell(clientBasic, boldFont));
+            headerTable.AddCell(CreateCell(statementPeriod, boldFont));
+
+            PdfPCell addressCell = new PdfPCell(new Phrase(string.Join("\n", addressLines), normalFont));
+            addressCell.Colspan = 2;
+            addressCell.Padding = 5;
+            headerTable.AddCell(addressCell);
+
+            doc.Add(headerTable);
+            doc.Add(new Chunk("\n"));
+
+            // Account Summary
+            doc.Add(new Paragraph("ACCOUNT SUMMARY", boldFont));
+            doc.Add(new Chunk("\n"));
+
+            PdfPTable summaryTable = new PdfPTable(5);
+            summaryTable.WidthPercentage = 100;
+            summaryTable.SetWidths(new float[] { 2.5f, 3.5f, 1.5f, 2.5f, 2.5f });
+
+            summaryTable.AddCell(CreateHeaderCell("Account Type", boldFont));
+            summaryTable.AddCell(CreateHeaderCell("Account Number", boldFont));
+            summaryTable.AddCell(CreateHeaderCell("CCY", boldFont));
+            summaryTable.AddCell(CreateHeaderCell("Balance", boldFont));
+            summaryTable.AddCell(CreateHeaderCell("HKD Equivalent", boldFont));
+
+            foreach (var row in accountSummaryRows)
+            {
+                foreach (var col in row)
+                    summaryTable.AddCell(CreateCell(col, normalFont));
+            }
+
+            doc.Add(summaryTable);
+            doc.Add(new Chunk("\n"));
+
+            // Account Activities
+            doc.Add(new Paragraph("ACCOUNT ACTIVITIES", boldFont));
+            doc.Add(new Chunk("\n"));
+
+            PdfPTable activityTable = new PdfPTable(5);
+            activityTable.WidthPercentage = 100;
+            activityTable.SetWidths(new float[] { 1.5f, 4.5f, 2f, 2f, 2.5f });
+
+            activityTable.AddCell(CreateHeaderCell("Date", boldFont));
+            activityTable.AddCell(CreateHeaderCell("Transaction Details", boldFont));
+            activityTable.AddCell(CreateHeaderCell("Deposit", boldFont));
+            activityTable.AddCell(CreateHeaderCell("Withdrawal", boldFont));
+            activityTable.AddCell(CreateHeaderCell("Balance", boldFont));
+
+            foreach (var row in accountActivityRows)
+            {
+                for (int i = 0; i < 5; i++)
+                {
+                    string cellText = i < row.Length ? row[i] : "";
+                    activityTable.AddCell(CreateCell(cellText, normalFont));
+                }
+            }
+
+            doc.Add(activityTable);
+            doc.Add(new Chunk("\n"));
+
+            // Footer
+            doc.Add(new Paragraph(footerNote, italicFont));
+            doc.Close();
+        }
+
+        Console.WriteLine("PDF generated at: " + outputPath);
+    }
+
+    static PdfPCell CreateCell(string text, Font font)
+    {
+        return new PdfPCell(new Phrase(text, font)) { Padding = 5 };
+    }
+
+    static PdfPCell CreateHeaderCell(string text, Font font)
+    {
+        return new PdfPCell(new Phrase(text, font))
+        {
+            BackgroundColor = new BaseColor(220, 220, 220),
+            Padding = 5
+        };
+    }
+
+    static string[] SplitByMultipleSpaces(string input)
+    {
+        return System.Text.RegularExpressions.Regex.Split(input.Trim(), @"\s{2,}");
+    }
+}
+                        
