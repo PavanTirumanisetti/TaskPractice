@@ -44,42 +44,35 @@ namespace BankStatementGenerator
             var lines = File.ReadAllLines(filePath).ToList();
             var validMonths = new[] { "JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC" };
 
-            // Find start of relevant data
             int startIndex = lines.FindIndex(line => line.Contains("Consolidated Cash Statement"));
             if (startIndex == -1) throw new Exception("File format not recognized");
             
-            // Extract client information
             data.ClientBasic = CleanValue(ExtractValue(lines, "Client Basic", startIndex, 20));
             data.StatementPeriod = CleanValue(ExtractValue(lines, "Statement Period", startIndex, 20));
             
-            // Extract company name and address
             int nameIndex = lines.FindIndex(startIndex, line => line.Contains("DICKSON CONCEPTS") || line.Contains("DICKSON    ICEPTS"));
             if (nameIndex != -1)
             {
                 data.CompanyName = "DICKSON CONCEPTS (WHOLESALE) LIMITED";
                 
-                // Extract and clean address lines
                 var addressLines = lines
                     .Skip(nameIndex + 1)
                     .TakeWhile(line => !line.Contains("Account Number") && 
                                        !line.Contains("ACCOUNT SUMMARY") &&
                                        !string.IsNullOrWhiteSpace(line))
                     .Select(CleanValue)
-                    .Where(line => !Regex.IsMatch(line, @"^\d+$")) // Exclude lines with only digits
+                    .Where(line => !Regex.IsMatch(line, @"^\d+$"))
                     .ToList();
                 
-                // Join address lines and remove redundant parts
                 string fullAddress = string.Join(" ", addressLines);
                 fullAddress = Regex.Replace(fullAddress, @"\bLIMITED\b", "").Trim();
                 fullAddress = Regex.Replace(fullAddress, @"\s+", " ");
                 data.Address = fullAddress;
             }
 
-            // Extract account number - more robust method
             data.AccountNumber = ExtractAccountNumber(lines, startIndex);
             data.Currency = "HKD";
 
-            // Extract opening balance
             int balanceIndex = lines.FindIndex(startIndex, line => Regex.IsMatch(line, @"[\d,]+\.\d{2}"));
             if (balanceIndex != -1)
             {
@@ -93,32 +86,26 @@ namespace BankStatementGenerator
                 }
             }
 
-            // Extract account activities
             int activitiesIndex = lines.FindIndex(startIndex, line => 
                 line.Contains("ACCOUNT ACTIVITIES") || line.Contains("CURRENT ACCOUNT"));
             
             if (activitiesIndex != -1)
             {
-                // Find the transaction table start
                 int tableStart = lines.FindIndex(activitiesIndex, line => 
                     Regex.IsMatch(line, @"\d{2}\s[A-Z]{3}"));
                 
                 if (tableStart != -1)
                 {
-                    // Process transaction lines
                     foreach (var line in lines.Skip(tableStart))
                     {
                         if (string.IsNullOrWhiteSpace(line)) break;
                         if (line.Contains("Page")) continue;
                         
-                        // Clean the line before processing
                         string cleanLine = CleanValue(line);
                         
-                        // Match valid date pattern (e.g., "01 OCT")
                         var dateMatch = Regex.Match(cleanLine, @"(\d{2}\s[A-Z]{3})");
                         if (!dateMatch.Success) continue;
                         
-                        // Validate month
                         string monthPart = dateMatch.Value.Split(' ')[1];
                         if (!validMonths.Contains(monthPart)) continue;
                         
@@ -136,7 +123,6 @@ namespace BankStatementGenerator
                             });
                         }
                         
-                        // Check for closing balance
                         if (cleanLine.Contains("Closing Balance"))
                         {
                             data.ClosingBalance = balance;
@@ -150,17 +136,14 @@ namespace BankStatementGenerator
 
         static string ExtractAccountNumber(List<string> lines, int startIndex)
         {
-            // First look for account number in summary section
             int accountIndex = lines.FindIndex(startIndex, line => line.Contains("Account Number"));
             if (accountIndex != -1)
             {
-                // Look for the first line with a valid account number pattern after header
                 for (int i = accountIndex + 1; i < lines.Count && i < accountIndex + 10; i++)
                 {
                     string line = CleanValue(lines[i]);
                     if (string.IsNullOrWhiteSpace(line)) continue;
                     
-                    // Look for typical account number pattern (digits and hyphens)
                     var match = Regex.Match(line, @"[\d-]{8,}");
                     if (match.Success)
                     {
@@ -169,7 +152,6 @@ namespace BankStatementGenerator
                 }
             }
             
-            // Fallback: look for any long digit string in the file
             foreach (string line in lines)
             {
                 var match = Regex.Match(line, @"\d{8,}");
@@ -179,7 +161,7 @@ namespace BankStatementGenerator
                 }
             }
             
-            return "001-0000-001-0"; // Default if not found
+            return "001-0000-001-0";
         }
 
         static string ExtractValue(List<string> lines, string key, int startIndex, int range)
@@ -194,13 +176,9 @@ namespace BankStatementGenerator
 
         static string CleanValue(string input)
         {
-            // Remove trailing numbers like "21" at end of lines
             string cleaned = Regex.Replace(input, @"\s*\d+\s*$", "");
-            // Remove any standalone long digit strings
             cleaned = Regex.Replace(cleaned, @"\b\d{12,}\b", "");
-            // Remove redundant LIMITED text
             cleaned = Regex.Replace(cleaned, @"\bLIMITED\b", "", RegexOptions.IgnoreCase).Trim();
-            // Collapse multiple spaces
             cleaned = Regex.Replace(cleaned, @"\s+", " ");
             return cleaned.Trim();
         }
@@ -209,14 +187,12 @@ namespace BankStatementGenerator
         {
             if (startIndex >= line.Length) return "";
             
-            // Find the next numeric value after the description
             var match = Regex.Match(line.Substring(startIndex), @"(.+?)(\d[\d,.]*\d|\d)");
             return match.Success ? match.Groups[1].Value.Trim() : line.Substring(startIndex).Trim();
         }
 
         static decimal ExtractBalance(string line)
         {
-            // Find the last numeric value in the line
             var matches = Regex.Matches(line, @"([\d,]+\.\d{2})");
             return matches.Count > 0 ? 
                 decimal.Parse(matches[^1].Value, NumberStyles.Currency, CultureInfo.InvariantCulture) : 0;
@@ -230,14 +206,12 @@ namespace BankStatementGenerator
                 var writer = PdfWriter.GetInstance(doc, fs);
                 doc.Open();
 
-                // Base font setup
                 var baseFont = BaseFont.CreateFont(
                     BaseFont.HELVETICA, 
                     BaseFont.CP1252, 
                     BaseFont.NOT_EMBEDDED
                 );
 
-                // Title
                 var titleFont = new Font(baseFont, 16, Font.BOLD);
                 doc.Add(new Paragraph("Consolidated Cash Statement", titleFont) 
                 { 
@@ -245,20 +219,27 @@ namespace BankStatementGenerator
                     SpacingAfter = 10
                 });
 
-                // Client Information
                 var infoFont = new Font(baseFont, 9);
                 doc.Add(new Paragraph($"Client Basic: {data.ClientBasic}", infoFont));
                 doc.Add(new Paragraph($"Statement Period: {data.StatementPeriod}", infoFont));
                 doc.Add(new Paragraph(data.CompanyName, infoFont));
-                doc.Add(new Paragraph(data.Address, infoFont));
+                
+                PdfPTable addressTable = new PdfPTable(1);
+                addressTable.WidthPercentage = 100;
+                PdfPCell addressCell = new PdfPCell();
+                addressCell.BackgroundColor = new BaseColor(240, 240, 240);
+                addressCell.Border = Rectangle.NO_BORDER;
+                addressCell.Padding = 5;
+                addressCell.Phrase = new Phrase(data.Address, infoFont);
+                addressTable.AddCell(addressCell);
+                doc.Add(addressTable);
+                
                 doc.Add(Chunk.NEWLINE);
 
-                // Account Summary Table
                 var summaryTable = new PdfPTable(6);
                 summaryTable.WidthPercentage = 100;
                 summaryTable.SetWidths(new float[] { 2, 3, 1, 2, 2, 2 });
 
-                // Table headers
                 var headerFont = new Font(baseFont, 9, Font.BOLD);
                 AddTableHeader(summaryTable, "Account Type", headerFont);
                 AddTableHeader(summaryTable, "Account Number", headerFont);
@@ -267,7 +248,6 @@ namespace BankStatementGenerator
                 AddTableHeader(summaryTable, "Exch Rate as at 31/10", headerFont);
                 AddTableHeader(summaryTable, "HKD Equivalent", headerFont);
 
-                // Table data
                 var dataFont = new Font(baseFont, 9);
                 AddTableCell(summaryTable, "Current", dataFont);
                 AddTableCell(summaryTable, data.AccountNumber, dataFont);
@@ -279,7 +259,6 @@ namespace BankStatementGenerator
                 doc.Add(summaryTable);
                 doc.Add(Chunk.NEWLINE);
 
-                // Account Activities
                 var sectionFont = new Font(baseFont, 10, Font.BOLD);
                 doc.Add(new Paragraph($"CURRENT ACCOUNT   {data.AccountNumber}   HKD", sectionFont));
                 doc.Add(Chunk.NEWLINE);
@@ -288,14 +267,12 @@ namespace BankStatementGenerator
                 activityTable.WidthPercentage = 100;
                 activityTable.SetWidths(new float[] { 1.5f, 5f, 2f, 2f, 2f });
 
-                // Table headers
                 AddTableHeader(activityTable, "Date", headerFont);
                 AddTableHeader(activityTable, "Transaction Details", headerFont);
                 AddTableHeader(activityTable, "Deposit", headerFont);
                 AddTableHeader(activityTable, "Withdrawal", headerFont);
                 AddTableHeader(activityTable, "Balance", headerFont);
 
-                // Add activities - filter out invalid entries
                 foreach (var activity in data.Activities.Where(a => !a.Description.Contains("HKD")))
                 {
                     AddTableCell(activityTable, activity.Date, dataFont);
@@ -305,7 +282,6 @@ namespace BankStatementGenerator
                     AddTableCell(activityTable, activity.Balance.ToString("N2"), dataFont, Element.ALIGN_RIGHT);
                 }
 
-                // Add "Total Credit-Debit Amounts" row
                 AddTableCell(activityTable, "", dataFont);
                 AddTableCell(activityTable, "Total Credit-Debit Amounts", headerFont);
                 AddTableCell(activityTable, "0.00", dataFont, Element.ALIGN_RIGHT);
@@ -316,7 +292,6 @@ namespace BankStatementGenerator
                 doc.Add(Chunk.NEWLINE);
                 doc.Add(Chunk.NEWLINE);
 
-                // Important Notice
                 var noticeFont = new Font(baseFont, 9, Font.BOLD);
                 doc.Add(new Paragraph("IMPORTANT", noticeFont));
                 
@@ -326,7 +301,6 @@ namespace BankStatementGenerator
                 doc.Add(new Paragraph("For complaints, please call our Client Services section " +
                     "at 2108 5449 or email us at csd_herojemo@eec.sorgevans.com.", normalFont));
 
-                // Add page footer
                 var footer = new Paragraph("PAGE    1 OF    1", new Font(baseFont, 9))
                 {
                     Alignment = Element.ALIGN_CENTER
@@ -363,7 +337,6 @@ namespace BankStatementGenerator
         }
     }
 
-    // Data Classes
     public class StatementData
     {
         public string ClientBasic { get; set; } = "00001-000068";
