@@ -1,0 +1,36 @@
+@echo off
+setlocal enabledelayedexpansion
+
+:: ===== CONFIGURATION =====
+set CSC="C:\Windows\Microsoft.NET\Framework\v4.0.30319\csc.exe"
+set ITEXTSHARP="C:\Path\To\itextsharp.dll"
+set SOURCE="C:\Path\To\BankStatementGenerator.cs"
+set COMPILED_EXE="C:\Path\To\BankStatementGenerator.exe"
+
+set INPUT_FILE="C:\Path\To\Input\statement.rpt.SH1"
+set OUTPUT_PDF="C:\Path\To\Output\statement.pdf"
+
+:: ===== COMPILE PROGRAM =====
+if not exist %COMPILED_EXE% (
+    echo Compiling program...
+    %CSC% /reference:%ITEXTSHARP% /out:%COMPILED_EXE% %SOURCE%
+    if errorlevel 1 (
+        echo Error compiling program
+        pause
+        exit /b 1
+    )
+)
+
+:: ===== RUN PROGRAM =====
+echo Generating PDF...
+%COMPILED_EXE% %INPUT_FILE% %OUTPUT_PDF%
+
+if errorlevel 1 (
+    echo Error generating PDF
+    pause
+    exit /b 1
+)
+
+echo PDF generated successfully: %OUTPUT_PDF%
+timeout /t 3 >nul
+exit /b 0
