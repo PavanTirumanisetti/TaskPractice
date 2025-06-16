@@ -13,11 +13,14 @@ namespace BankStatementGenerator
     {
         static void Main(string[] args)
         {
-            Console.WriteLine("Enter path to rpt.SH1 file:");
-            string inputPath = Console.ReadLine();
-            
-            Console.WriteLine("Enter output PDF path:");
-            string outputPath = Console.ReadLine();
+            if (args.Length < 2)
+            {
+                Console.WriteLine("Usage: BankStatementGenerator.exe <inputPath> <outputPath>");
+                Environment.Exit(1);
+            }
+
+            string inputPath = args[0];
+            string outputPath = args[1];
 
             if (File.Exists(inputPath))
             {
@@ -30,11 +33,13 @@ namespace BankStatementGenerator
                 catch (Exception ex)
                 {
                     Console.WriteLine($"Error: {ex.Message}");
+                    Environment.Exit(1);
                 }
             }
             else
             {
                 Console.WriteLine("Input file not found");
+                Environment.Exit(1);
             }
         }
 
