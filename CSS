@@ -1,36 +1,94 @@
 @echo off
 setlocal enabledelayedexpansion
 
-:: ===== CONFIGURATION =====
-set CSC="C:\Windows\Microsoft.NET\Framework\v4.0.30319\csc.exe"
-set ITEXTSHARP="C:\Path\To\itextsharp.dll"
-set SOURCE="C:\Path\To\BankStatementGenerator.cs"
-set COMPILED_EXE="C:\Path\To\BankStatementGenerator.exe"
-
-set INPUT_FILE="C:\Path\To\Input\statement.rpt.SH1"
-set OUTPUT_PDF="C:\Path\To\Output\statement.pdf"
-
-:: ===== COMPILE PROGRAM =====
-if not exist %COMPILED_EXE% (
-    echo Compiling program...
-    %CSC% /reference:%ITEXTSHARP% /out:%COMPILED_EXE% %SOURCE%
-    if errorlevel 1 (
-        echo Error compiling program
-        pause
-        exit /b 1
-    )
+:: ===== Date Extraction =====
+for /f "tokens=1-4 delims=/- " %%a in ('date /t') do (
+    set yyyy=%%a
+    set mm=%%b
+    set dd=%%c
 )
+set yyyymmdd=%yyyy%%mm%%dd%
+set datel=%yyyy%-%mm%-%dd%
 
-:: ===== RUN PROGRAM =====
-echo Generating PDF...
-%COMPILED_EXE% %INPUT_FILE% %OUTPUT_PDF%
+:: ===== Path Configuration =====
+set "Batchdir=C:\SG EREPORTING\estatement_python\"
+set "SGEreportingFile=ecca.tar.2"
+set "FilePath=C:\SG EREPORTING\input_sftp\"
+set "LogPath=C:\SG EREPORTING\SG EREPORTING SFTP\SG EREPORTING LOGS\"
+set "PdfOutput=C:\SG EREPORTING\PDF Output\"
 
-if errorlevel 1 (
-    echo Error generating PDF
-    pause
+:: ===== PDF Generator Settings =====
+set "CscPath=C:\Windows\Microsoft.NET\Framework\v4.0.30319\csc.exe"
+set "ItextSharp=C:\SG EREPORTING\itextsharp.dll"
+set "CsSource=C:\SG EREPORTING\BankStatementGenerator.cs"
+set "PdfGenerator=C:\SG EREPORTING\BankStatementGenerator.exe"
+
+:: ===== Log File Setup =====
+set "logname=SG_EREPORTING_TRIGGER_%yyyymmdd%"
+set "logfile=%LogPath%!logname!.log"
+
+:: ===== Create Directories =====
+if not exist "%LogPath%" mkdir "%LogPath%"
+if not exist "%PdfOutput%" mkdir "%PdfOutput%"
+
+:: ===== Log Initial Status =====
+echo [%datel% %time%] Process started >> "%logfile%"
+echo ======================================== >> "%logfile%"
+
+:: ===== File Check and Processing =====
+pushd "%FilePath%"
+if exist "%SGEreportingFile%" (
+    echo File Found [%datel% %time%] >> "%logfile%"
+    echo. >> "%logfile%"
+    
+    echo Starting PDF generation process [%datel% %time%] >> "%logfile%"
+    
+    :: ===== Compile PDF Generator if needed =====
+    if not exist "%PdfGenerator%" (
+        echo Compiling PDF generator... >> "%logfile%"
+        "%CscPath%" /reference:"%ItextSharp%" /out:"%PdfGenerator%" "%CsSource%"
+        if errorlevel 1 (
+            echo ERROR: PDF generator compilation failed >> "%logfile%"
+            goto :error
+        )
+        echo PDF generator compiled successfully >> "%logfile%"
+    )
+    
+    :: ===== Generate PDF =====
+    echo Generating PDF statements... >> "%logfile%"
+    set "output_pdf=%PdfOutput%BankStatement_%yyyymmdd%.pdf"
+    
+    "%PdfGenerator%" "%FilePath%%SGEreportingFile%" "%output_pdf%"
+    if errorlevel 1 (
+        echo ERROR: PDF generation failed >> "%logfile%"
+        goto :error
+    )
+    
+    echo PDF generated successfully: %output_pdf% >> "%logfile%"
+    echo. >> "%logfile%"
+    
+    :: ===== Run Python Processing =====
+    echo Starting Python processing [%datel% %time%] >> "%logfile%"
+    pushd "%Batchdir%"
+    call estatement_python.bat
+    popd
+    echo Python processing completed [%datel% %time%] >> "%logfile%"
+    
+    :: ===== Final Success =====
+    echo. >> "%logfile%"
+    echo Completed all processes [%datel% %time%] >> "%logfile%"
+    echo ======================================== >> "%logfile%"
+    exit /b 0
+    
+) else (
+    echo File Not Found [%datel% %time%] >> "%logfile%"
+    echo ERROR: %FilePath%%SGEreportingFile% missing >> "%logfile%"
+    echo ======================================== >> "%logfile%"
     exit /b 1
 )
 
-echo PDF generated successfully: %OUTPUT_PDF%
-timeout /t 3 >nul
-exit /b 0
+:error
+echo. >> "%logfile%"
+echo [%datel% %time%] PROCESS ABORTED DUE TO ERRORS >> "%logfile%"
+echo ======================================== >> "%logfile%"
+exit /b 1
