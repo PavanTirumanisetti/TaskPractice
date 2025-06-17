@@ -2,60 +2,30 @@
 setlocal enabledelayedexpansion
 
 :: ===== Configuration =====
-set "WORKING_DIR=C:\BankStatementGenerator"
-set "CSC_PATH=C:\Windows\Microsoft.NET\Framework\v4.0.30319\csc.exe"
-set "ITEXTSHARP=%WORKING_DIR%\itextsharp.dll"
-set "CS_SOURCE=%WORKING_DIR%\BankStatementGenerator.cs"
-set "COMPILED_EXE=%WORKING_DIR%\BankStatementGenerator.exe"
+set "CSC=C:\Windows\Microsoft.NET\Framework\v4.0.30319\csc.exe"
+set "INPUT_FILE=C:\Path\To\Your\input.rpt.SH1"
+set "OUTPUT_PDF=C:\Path\To\Output\BankStatement.pdf"
+set "ITEXTSHARP=C:\Path\To\itextsharp.dll"
 
-set "INPUT_FILE=%WORKING_DIR%\input.rpt.SH1"
-set "OUTPUT_PDF=%WORKING_DIR%\output.pdf"
-
-:: ===== Create working directory =====
-if not exist "%WORKING_DIR%" mkdir "%WORKING_DIR%"
-
-:: ===== Verify required files exist =====
-if not exist "%CSC_PATH%" (
-    echo Error: .NET Compiler not found at %CSC_PATH%
-    pause
-    exit /b 1
-)
-
-if not exist "%ITEXTSHARP%" (
-    echo Error: iTextSharp.dll not found at %ITEXTSHARP%
-    echo Download from: https://github.com/itext/itextsharp/releases/tag/5.5.13.3
-    pause
-    exit /b 1
-)
-
-if not exist "%CS_SOURCE%" (
-    echo Error: C# source file not found at %CS_SOURCE%
-    pause
-    exit /b 1
-)
-
-:: ===== Compile the program =====
-if not exist "%COMPILED_EXE%" (
-    echo Compiling bank statement generator...
-    "%CSC_PATH%" /reference:"%ITEXTSHARP%" /out:"%COMPILED_EXE%" "%CS_SOURCE%"
-    if errorlevel 1 (
-        echo Compilation failed!
-        pause
-        exit /b 1
-    )
-    echo Compilation successful!
-)
-
-:: ===== Run the program =====
-echo Generating PDF from %INPUT_FILE%...
-"%COMPILED_EXE%" "%INPUT_FILE%" "%OUTPUT_PDF%"
+:: ===== Compile and Run =====
+echo Compiling bank statement generator...
+"%CSC%" /reference:"%ITEXTSHARP%" /out:"%TEMP%\BankStatementGen.exe" "%~dp0BankStatementGenerator.cs"
 
 if errorlevel 1 (
-    echo Error generating PDF
+    echo Compilation failed!
     pause
     exit /b 1
 )
 
-echo PDF generated successfully at %OUTPUT_PDF%
-timeout /t 5
+echo Generating PDF from %INPUT_FILE%...
+"%TEMP%\BankStatementGen.exe" "%INPUT_FILE%" "%OUTPUT_PDF%"
+
+if errorlevel 1 (
+    echo PDF generation failed!
+    pause
+    exit /b 1
+)
+
+echo PDF created successfully at %OUTPUT_PDF%
+timeout /t 3
 exit /b 0
