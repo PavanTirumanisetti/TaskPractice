@@ -3,29 +3,69 @@ setlocal enabledelayedexpansion
 
 :: ===== Configuration =====
 set "CSC=C:\Windows\Microsoft.NET\Framework\v4.0.30319\csc.exe"
-set "INPUT_FILE=C:\Path\To\Your\input.rpt.SH1"
-set "OUTPUT_PDF=C:\Path\To\Output\BankStatement.pdf"
-set "ITEXTSHARP=C:\Path\To\itextsharp.dll"
+set "CS_SOURCE=C:\chinese_reports\BankStatementGenerator\ReportGeneration\BankStatementGenerator.cs"
+set "ITEXTSHARP=C:\chinese_reports\Report Generation\prog\itextsharp.dll"
+set "INPUT_FILE=C:\chinese_reports\ReportGeneration\Input\fstmprt.rpt (1).SH1"
+set "OUTPUT_PDF=C:\chinese_reports\ReportGeneration\output\fstmprt.rpt.pdf"
+set "COMPILED_EXE=C:\chinese_reports\ReportGeneration\BankStatementGenerator.exe"
 
-:: ===== Compile and Run =====
+:: ===== Verify Paths =====
+echo Verifying paths...
+if not exist "%CSC%" (
+    echo Error: .NET Compiler not found at %CSC%
+    pause
+    exit /b 1
+)
+
+if not exist "%ITEXTSHARP%" (
+    echo Error: iTextSharp.dll not found at %ITEXTSHARP%
+    pause
+    exit /b 1
+)
+
+if not exist "%CS_SOURCE%" (
+    echo Error: C# source file not found at %CS_SOURCE%
+    pause
+    exit /b 1
+)
+
+if not exist "%INPUT_FILE%" (
+    echo Error: Input file not found at %INPUT_FILE%
+    pause
+    exit /b 1
+)
+
+:: ===== Create Output Directory =====
+set "OUTPUT_DIR=C:\chinese_reports\ReportGeneration\output"
+if not exist "%OUTPUT_DIR%" (
+    echo Creating output directory...
+    mkdir "%OUTPUT_DIR%"
+)
+
+:: ===== Compile Program =====
 echo Compiling bank statement generator...
-"%CSC%" /reference:"%ITEXTSHARP%" /out:"%TEMP%\BankStatementGen.exe" "%~dp0BankStatementGenerator.cs"
+"%CSC%" /reference:"%ITEXTSHARP%" /out:"%COMPILED_EXE%" "%CS_SOURCE%"
 
 if errorlevel 1 (
-    echo Compilation failed!
+    echo Error: Compilation failed!
     pause
     exit /b 1
 )
 
-echo Generating PDF from %INPUT_FILE%...
-"%TEMP%\BankStatementGen.exe" "%INPUT_FILE%" "%OUTPUT_PDF%"
+:: ===== Generate PDF =====
+echo Generating PDF from input file...
+"%COMPILED_EXE%" "%INPUT_FILE%" "%OUTPUT_PDF%"
 
 if errorlevel 1 (
-    echo PDF generation failed!
+    echo Error: PDF generation failed!
     pause
     exit /b 1
 )
 
-echo PDF created successfully at %OUTPUT_PDF%
-timeout /t 3
+echo.
+echo ========================================
+echo PDF created successfully!
+echo Location: %OUTPUT_PDF%
+echo ========================================
+timeout /t 5
 exit /b 0
