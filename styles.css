@@ -1,4 +1,23 @@
-h1 {
-    color: red;
+@echo off
+setlocal
 
-}
+:: ===== Configuration =====
+set "TASK_NAME=Generate Bank Statement Daily"
+set "BATCH_SCRIPT=%~dp0GenerateBankStatement.bat"
+set "START_TIME=09:00"
+
+:: ===== Create Scheduled Task =====
+schtasks /create /tn "%TASK_NAME%" /tr "%BATCH_SCRIPT%" /sc daily /st %START_TIME% /ru SYSTEM
+
+if errorlevel 1 (
+    echo Error creating scheduled task!
+    echo Make sure to run this as Administrator
+    pause
+    exit /b 1
+)
+
+echo Scheduled task created successfully!
+echo Task Name: %TASK_NAME%
+echo Run Time: %START_TIME% daily
+timeout /t 5
+exit /b 0
