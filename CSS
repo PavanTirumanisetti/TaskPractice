@@ -1,6 +1,21 @@
 @echo off
 setlocal enabledelayedexpansion
 
+:: ===== Task Scheduling Flag =====
+if "%~1"=="--schedule" (
+    set "TASK_NAME=Generate Bank Statement Daily"
+    set "START_TIME=09:00"
+    
+    schtasks /create /tn "!TASK_NAME!" /tr "%~f0" /sc daily /st !START_TIME! /ru SYSTEM
+    if errorlevel 1 (
+        echo Error creating scheduled task!
+        echo Run this script as Administrator to schedule
+    ) else (
+        echo Scheduled task created: !TASK_NAME! at !START_TIME! daily
+    )
+    timeout /t 5
+    exit /b
+)
 :: ===== Configuration =====
 set "CSC=C:\Windows\Microsoft.NET\Framework\v4.0.30319\csc.exe"
 set "CS_SOURCE=C:\chinese_reports\BankStatementGenerator\ReportGeneration\BankStatementGenerator.cs"
