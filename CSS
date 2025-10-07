@@ -1,114 +1,96 @@
 Option Explicit
 
 Public Sub Interpolate()
-    Dim wsExt As Worksheet, wsWork As Worksheet
-    Dim lastRow As Long, i As Long
-    Dim curr As String
-    Dim tenorDays As Long
+    ' New COF calculator (bucketed by tenor)
+    Dim i As Long, lastRow As Long
+    Dim CURRENC As String
+    Dim TENOR As Long
+    Dim COF As Double
     Dim r1m As Double, r2m As Double, r3m As Double, r6m As Double, r12m As Double
-    Dim cof As Double
     
-    Set wsExt = ThisWorkbook.Sheets("Ext")
-    Set wsWork = ThisWorkbook.Sheets("work")
+    Sheets("work").Calculate
+    Sheets("Ext").Select
     
-    wsWork.Calculate
-    wsExt.Calculate
-    
-    ' find last used row on Ext (column A used as stopper)
-    lastRow = wsExt.Cells(wsExt.Rows.Count, 1).End(xlUp).Row
+    ' find last used row on Ext using column A as stopper
+    lastRow = Cells(Rows.Count, 1).End(xlUp).Row
     If lastRow < 2 Then Exit Sub
     
     For i = 2 To lastRow
-        If Len(wsExt.Cells(i, 1).Value) = 0 Then Exit For ' stop on first blank row
+        If Len(Cells(i, 1).Value) = 0 Then Exit For     ' stop on first blank row
         
-        curr = CStr(wsExt.Cells(i, 8).Value)              ' H: Currency
-        tenorDays = CLng(Val(wsExt.Cells(i, 20).Value))    ' T: Duration in days
+        CURRENC = CStr(Cells(i, 8).Value)               ' Ext!H: Currency
+        TENOR = CLng(Val(Cells(i, 20).Value))            ' Ext!T: Duration in days
         
-        If tenorDays < 1 Then
-            wsExt.Cells(i, 21).Value = 0
-            GoTo NextRow
-        End If
+        ' Pull standard pillar rates from "work"
+        r1m = FetchRate(CURRENC, 30)                     ' 1M
+        r2m = FetchRate(CURRENC, 60)                     ' 2M
+        r3m = FetchRate(CURRENC, 90)                     ' 3M
+        r6m = FetchRate(CURRENC, 180)                    ' 6M
+        r12m = FetchRate(CURRENC, 360)                   ' 12M
         
-        ' Fetch standard pillar rates for the row's currency
-        r1m = FetchStdRate(wsWork, curr, 30)    ' 1M
-        r2m = FetchStdRate(wsWork, curr, 60)    ' 2M
-        r3m = FetchStdRate(wsWork, curr, 90)    ' 3M
-        r6m = FetchStdRate(wsWork, curr, 180)   ' 6M
-        r12m = FetchStdRate(wsWork, curr, 360)  ' 12M
+        ' Apply new tenor logic (stepwise buckets)
+        Select Case TENOR
+            Case 1 To 30
+                COF = IIf(r1m = 0, 0, r1m)
+            Case 31 To 60
+                COF = IIf(r2m = 0, 0, r2m)
+            Case 61 To 90
+                COF = IIf(r3m = 0, 0, r3m)
+            Case 91 To 120
+                If r3m = 0 Or r6m = 0 Then COF = 0 Else COF = r3m + (r6m - r3m) / 3#
+            Case 121 To 150
+                If r3m = 0 Or r6m = 0 Then COF = 0 Else COF = r3m + (r6m - r3m) * (2# / 3#)
+            Case 151 To 180
+                COF = IIf(r6m = 0, 0, r6m)
+            Case 181 To 210
+                If r6m = 0 Or r12m = 0 Then COF = 0 Else COF = r6m + (r12m - r6m) * (1# / 6#)
+            Case 211 To 240
+                If r6m = 0 Or r12m = 0 Then COF = 0 Else COF = r6m + (r12m - r6m) * (2# / 6#)
+            Case 241 To 270
+                If r6m = 0 Or r12m = 0 Then COF = 0 Else COF = r6m + (r12m - r6m) * (3# / 6#)
+            Case 271 To 300
+                If r6m = 0 Or r12m = 0 Then COF = 0 Else COF = r6m + (r12m - r6m) * (4# / 6#)
+            Case 301 To 330
+                If r6m = 0 Or r12m = 0 Then COF = 0 Else COF = r6m + (r12m - r6m) * (5# / 6#)
+            Case 331 To 365
+                COF = IIf(r12m = 0, 0, r12m)
+            Case Else
+                ' outside stated range; keep current policy (here: stick to 12M if >365, else 0)
+                If TENOR > 365 Then
+                    COF = IIf(r12m = 0, 0, r12m)
+                Else
+                    COF = 0
+                End If
+        End Select
         
-        ' Default if any pillar is missing (RFQ/blank) → treat as 0 like old code
-        If (r1m = 0 And tenorDays <= 30) _
-        Or (r2m = 0 And tenorDays <= 60 And tenorDays >= 31) _
-        Or (r3m = 0 And tenorDays <= 90 And tenorDays >= 61) _
-        Or (r6m = 0 And tenorDays <= 180 And tenorDays >= 151) _
-        Or (r12m = 0 And tenorDays >= 331) Then
-            cof = 0
-        Else
-            ' Piecewise bucketed formula per your spec
-            Select Case tenorDays
-                Case 1 To 30
-                    cof = r1m
-                Case 31 To 60
-                    cof = r2m
-                Case 61 To 90
-                    cof = r3m
-                Case 91 To 120
-                    cof = r3m + (r6m - r3m) / 3#
-                Case 121 To 150
-                    cof = r3m + (r6m - r3m) * (2# / 3#)
-                Case 151 To 180
-                    cof = r6m
-                Case 181 To 210
-                    cof = r6m + (r12m - r6m) * (1# / 6#)
-                Case 211 To 240
-                    cof = r6m + (r12m - r6m) * (2# / 6#)
-                Case 241 To 270
-                    cof = r6m + (r12m - r6m) * (3# / 6#)
-                Case 271 To 300
-                    cof = r6m + (r12m - r6m) * (4# / 6#)
-                Case 301 To 330
-                    cof = r6m + (r12m - r6m) * (5# / 6#)
-                Case 331 To 365
-                    cof = r12m
-                Case Is > 365
-                    ' If you ever need beyond 365, keep at 12M (or change as desired)
-                    cof = r12m
-                Case Else
-                    cof = 0
-            End Select
-        End If
-        
-        wsExt.Cells(i, 21).Value = cof ' U: interpolate rate
-NextRow:
+        Cells(i, 21).Value = COF                         ' Ext!U: "interpolate rate"
     Next i
     
-    wsExt.Calculate
+    Sheets("Ext").Calculate
 End Sub
 
-' Helper: get the standard tenor rate for a currency from Sheets("work")
-' Assumes: Column A = Currency, Column L = Tenor in days, Column I = Rate (or "RFQ")
-Private Function FetchStdRate(ByVal wsWork As Worksheet, ByVal currencyCode As String, ByVal tenorInDays As Long) As Double
-    Dim r As Long, lastWorkRow As Long
-    Dim t As Long, v As Variant
-    
-    lastWorkRow = wsWork.Cells(wsWork.Rows.Count, 1).End(xlUp).Row
-    FetchStdRate = 0
-    
-    For r = 3 To lastWorkRow
-        If CStr(wsWork.Cells(r, 1).Value) = currencyCode Then
-            t = CLng(Val(wsWork.Cells(r, 12).Value)) ' L: tenor days
-            If t = tenorInDays Then
-                v = wsWork.Cells(r, 9).Value        ' I: rate
+' Helper: read a standard pillar from "work"
+' Columns assumed as per your tool: A=Currency, L=Tenor(days), I=Rate (or "RFQ")
+Private Function FetchRate(ByVal currencyCode As String, ByVal tenorDays As Long) As Double
+    Dim ws As Worksheet, r As Long, lastRow As Long, v As Variant, t As Long
+    Set ws = Sheets("work")
+    lastRow = ws.Cells(ws.Rows.Count, 1).End(xlUp).Row
+    FetchRate = 0
+    For r = 3 To lastRow
+        If CStr(ws.Cells(r, 1).Value) = currencyCode Then
+            t = CLng(Val(ws.Cells(r, 12).Value))         ' col L
+            If t = tenorDays Then
+                v = ws.Cells(r, 9).Value                 ' col I
                 If VarType(v) = vbString Then
                     If Trim$(UCase$(CStr(v))) = "RFQ" Or Trim$(CStr(v)) = "" Then
-                        FetchStdRate = 0
+                        FetchRate = 0
                     Else
-                        FetchStdRate = CDbl(Val(v))
+                        FetchRate = CDbl(Val(v))
                     End If
                 ElseIf IsNumeric(v) Then
-                    FetchStdRate = CDbl(v)
+                    FetchRate = CDbl(v)
                 Else
-                    FetchStdRate = 0
+                    FetchRate = 0
                 End If
                 Exit Function
             End If
