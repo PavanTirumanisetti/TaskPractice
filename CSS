@@ -1,7 +1,6 @@
 Option Explicit
 
 Public Sub Interpolate()
-    ' New COF calculator (bucketed by tenor)
     Dim i As Long, lastRow As Long
     Dim CURRENC As String
     Dim TENOR As Long
@@ -11,24 +10,21 @@ Public Sub Interpolate()
     Sheets("work").Calculate
     Sheets("Ext").Select
     
-    ' find last used row on Ext using column A as stopper
     lastRow = Cells(Rows.Count, 1).End(xlUp).Row
     If lastRow < 2 Then Exit Sub
     
     For i = 2 To lastRow
-        If Len(Cells(i, 1).Value) = 0 Then Exit For     ' stop on first blank row
+        If Len(Cells(i, 1).Value) = 0 Then Exit For
         
-        CURRENC = CStr(Cells(i, 8).Value)               ' Ext!H: Currency
-        TENOR = CLng(Val(Cells(i, 20).Value))            ' Ext!T: Duration in days
+        CURRENC = CStr(Cells(i, 8).Value)
+        TENOR = CLng(Val(Cells(i, 20).Value))
         
-        ' Pull standard pillar rates from "work"
-        r1m = FetchRate(CURRENC, 30)                     ' 1M
-        r2m = FetchRate(CURRENC, 60)                     ' 2M
-        r3m = FetchRate(CURRENC, 90)                     ' 3M
-        r6m = FetchRate(CURRENC, 180)                    ' 6M
-        r12m = FetchRate(CURRENC, 360)                   ' 12M
+        r1m = FetchRate(CURRENC, 30)
+        r2m = FetchRate(CURRENC, 60)
+        r3m = FetchRate(CURRENC, 90)
+        r6m = FetchRate(CURRENC, 180)
+        r12m = FetchRate(CURRENC, 360)
         
-        ' Apply new tenor logic (stepwise buckets)
         Select Case TENOR
             Case 1 To 30
                 COF = IIf(r1m = 0, 0, r1m)
@@ -55,7 +51,6 @@ Public Sub Interpolate()
             Case 331 To 365
                 COF = IIf(r12m = 0, 0, r12m)
             Case Else
-                ' outside stated range; keep current policy (here: stick to 12M if >365, else 0)
                 If TENOR > 365 Then
                     COF = IIf(r12m = 0, 0, r12m)
                 Else
@@ -63,14 +58,12 @@ Public Sub Interpolate()
                 End If
         End Select
         
-        Cells(i, 21).Value = COF                         ' Ext!U: "interpolate rate"
+        Cells(i, 21).Value = COF
     Next i
     
     Sheets("Ext").Calculate
 End Sub
 
-' Helper: read a standard pillar from "work"
-' Columns assumed as per your tool: A=Currency, L=Tenor(days), I=Rate (or "RFQ")
 Private Function FetchRate(ByVal currencyCode As String, ByVal tenorDays As Long) As Double
     Dim ws As Worksheet, r As Long, lastRow As Long, v As Variant, t As Long
     Set ws = Sheets("work")
@@ -78,9 +71,9 @@ Private Function FetchRate(ByVal currencyCode As String, ByVal tenorDays As Long
     FetchRate = 0
     For r = 3 To lastRow
         If CStr(ws.Cells(r, 1).Value) = currencyCode Then
-            t = CLng(Val(ws.Cells(r, 12).Value))         ' col L
+            t = CLng(Val(ws.Cells(r, 12).Value))
             If t = tenorDays Then
-                v = ws.Cells(r, 9).Value                 ' col I
+                v = ws.Cells(r, 9).Value
                 If VarType(v) = vbString Then
                     If Trim$(UCase$(CStr(v))) = "RFQ" Or Trim$(CStr(v)) = "" Then
                         FetchRate = 0
