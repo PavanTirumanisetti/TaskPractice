@@ -1,86 +1,117 @@
-@echo off
-setlocal enabledelayedexpansion
+Option Explicit
 
-:: ===== Task Scheduling Flag =====
-if "%~1"=="--schedule" (
-    set "TASK_NAME=Generate Bank Statement Daily"
-    set "START_TIME=09:00"
+Public Sub Interpolate()
+    Dim wsExt As Worksheet, wsWork As Worksheet
+    Dim lastRow As Long, i As Long
+    Dim curr As String
+    Dim tenorDays As Long
+    Dim r1m As Double, r2m As Double, r3m As Double, r6m As Double, r12m As Double
+    Dim cof As Double
     
-    schtasks /create /tn "!TASK_NAME!" /tr "%~f0" /sc daily /st !START_TIME! /ru SYSTEM
-    if errorlevel 1 (
-        echo Error creating scheduled task!
-        echo Run this script as Administrator to schedule
-    ) else (
-        echo Scheduled task created: !TASK_NAME! at !START_TIME! daily
-    )
-    timeout /t 5
-    exit /b
-)
-:: ===== Configuration =====
-set "CSC=C:\Windows\Microsoft.NET\Framework\v4.0.30319\csc.exe"
-set "CS_SOURCE=C:\chinese_reports\BankStatementGenerator\ReportGeneration\BankStatementGenerator.cs"
-set "ITEXTSHARP=C:\chinese_reports\Report Generation\prog\itextsharp.dll"
-set "INPUT_FILE=C:\chinese_reports\ReportGeneration\Input\fstmprt.rpt (1).SH1"
-set "OUTPUT_PDF=C:\chinese_reports\ReportGeneration\output\fstmprt.rpt.pdf"
-set "COMPILED_EXE=C:\chinese_reports\ReportGeneration\BankStatementGenerator.exe"
+    Set wsExt = ThisWorkbook.Sheets("Ext")
+    Set wsWork = ThisWorkbook.Sheets("work")
+    
+    wsWork.Calculate
+    wsExt.Calculate
+    
+    ' find last used row on Ext (column A used as stopper)
+    lastRow = wsExt.Cells(wsExt.Rows.Count, 1).End(xlUp).Row
+    If lastRow < 2 Then Exit Sub
+    
+    For i = 2 To lastRow
+        If Len(wsExt.Cells(i, 1).Value) = 0 Then Exit For ' stop on first blank row
+        
+        curr = CStr(wsExt.Cells(i, 8).Value)              ' H: Currency
+        tenorDays = CLng(Val(wsExt.Cells(i, 20).Value))    ' T: Duration in days
+        
+        If tenorDays < 1 Then
+            wsExt.Cells(i, 21).Value = 0
+            GoTo NextRow
+        End If
+        
+        ' Fetch standard pillar rates for the row's currency
+        r1m = FetchStdRate(wsWork, curr, 30)    ' 1M
+        r2m = FetchStdRate(wsWork, curr, 60)    ' 2M
+        r3m = FetchStdRate(wsWork, curr, 90)    ' 3M
+        r6m = FetchStdRate(wsWork, curr, 180)   ' 6M
+        r12m = FetchStdRate(wsWork, curr, 360)  ' 12M
+        
+        ' Default if any pillar is missing (RFQ/blank) → treat as 0 like old code
+        If (r1m = 0 And tenorDays <= 30) _
+        Or (r2m = 0 And tenorDays <= 60 And tenorDays >= 31) _
+        Or (r3m = 0 And tenorDays <= 90 And tenorDays >= 61) _
+        Or (r6m = 0 And tenorDays <= 180 And tenorDays >= 151) _
+        Or (r12m = 0 And tenorDays >= 331) Then
+            cof = 0
+        Else
+            ' Piecewise bucketed formula per your spec
+            Select Case tenorDays
+                Case 1 To 30
+                    cof = r1m
+                Case 31 To 60
+                    cof = r2m
+                Case 61 To 90
+                    cof = r3m
+                Case 91 To 120
+                    cof = r3m + (r6m - r3m) / 3#
+                Case 121 To 150
+                    cof = r3m + (r6m - r3m) * (2# / 3#)
+                Case 151 To 180
+                    cof = r6m
+                Case 181 To 210
+                    cof = r6m + (r12m - r6m) * (1# / 6#)
+                Case 211 To 240
+                    cof = r6m + (r12m - r6m) * (2# / 6#)
+                Case 241 To 270
+                    cof = r6m + (r12m - r6m) * (3# / 6#)
+                Case 271 To 300
+                    cof = r6m + (r12m - r6m) * (4# / 6#)
+                Case 301 To 330
+                    cof = r6m + (r12m - r6m) * (5# / 6#)
+                Case 331 To 365
+                    cof = r12m
+                Case Is > 365
+                    ' If you ever need beyond 365, keep at 12M (or change as desired)
+                    cof = r12m
+                Case Else
+                    cof = 0
+            End Select
+        End If
+        
+        wsExt.Cells(i, 21).Value = cof ' U: interpolate rate
+NextRow:
+    Next i
+    
+    wsExt.Calculate
+End Sub
 
-:: ===== Verify Paths =====
-echo Verifying paths...
-if not exist "%CSC%" (
-    echo Error: .NET Compiler not found at %CSC%
-    pause
-    exit /b 1
-)
-
-if not exist "%ITEXTSHARP%" (
-    echo Error: iTextSharp.dll not found at %ITEXTSHARP%
-    pause
-    exit /b 1
-)
-
-if not exist "%CS_SOURCE%" (
-    echo Error: C# source file not found at %CS_SOURCE%
-    pause
-    exit /b 1
-)
-
-if not exist "%INPUT_FILE%" (
-    echo Error: Input file not found at %INPUT_FILE%
-    pause
-    exit /b 1
-)
-
-:: ===== Create Output Directory =====
-set "OUTPUT_DIR=C:\chinese_reports\ReportGeneration\output"
-if not exist "%OUTPUT_DIR%" (
-    echo Creating output directory...
-    mkdir "%OUTPUT_DIR%"
-)
-
-:: ===== Compile Program =====
-echo Compiling bank statement generator...
-"%CSC%" /reference:"%ITEXTSHARP%" /out:"%COMPILED_EXE%" "%CS_SOURCE%"
-
-if errorlevel 1 (
-    echo Error: Compilation failed!
-    pause
-    exit /b 1
-)
-
-:: ===== Generate PDF =====
-echo Generating PDF from input file...
-"%COMPILED_EXE%" "%INPUT_FILE%" "%OUTPUT_PDF%"
-
-if errorlevel 1 (
-    echo Error: PDF generation failed!
-    pause
-    exit /b 1
-)
-
-echo.
-echo ========================================
-echo PDF created successfully!
-echo Location: %OUTPUT_PDF%
-echo ========================================
-timeout /t 5
-exit /b 0
+' Helper: get the standard tenor rate for a currency from Sheets("work")
+' Assumes: Column A = Currency, Column L = Tenor in days, Column I = Rate (or "RFQ")
+Private Function FetchStdRate(ByVal wsWork As Worksheet, ByVal currencyCode As String, ByVal tenorInDays As Long) As Double
+    Dim r As Long, lastWorkRow As Long
+    Dim t As Long, v As Variant
+    
+    lastWorkRow = wsWork.Cells(wsWork.Rows.Count, 1).End(xlUp).Row
+    FetchStdRate = 0
+    
+    For r = 3 To lastWorkRow
+        If CStr(wsWork.Cells(r, 1).Value) = currencyCode Then
+            t = CLng(Val(wsWork.Cells(r, 12).Value)) ' L: tenor days
+            If t = tenorInDays Then
+                v = wsWork.Cells(r, 9).Value        ' I: rate
+                If VarType(v) = vbString Then
+                    If Trim$(UCase$(CStr(v))) = "RFQ" Or Trim$(CStr(v)) = "" Then
+                        FetchStdRate = 0
+                    Else
+                        FetchStdRate = CDbl(Val(v))
+                    End If
+                ElseIf IsNumeric(v) Then
+                    FetchStdRate = CDbl(v)
+                Else
+                    FetchStdRate = 0
+                End If
+                Exit Function
+            End If
+        End If
+    Next r
+End Function
