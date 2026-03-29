@@ -1,92 +1,111 @@
-Option Explicit
+Based on the images provided, here is the transcribed text from the coding problem and the Python template.
 
-Public Sub Interpolate()
-    Dim i As Long, lastRow As Long
-    Dim CURRENC As String
-    Dim TENOR As Long
-    Dim COF As Double
-    Dim r1m As Double, r2m As Double, r3m As Double, r6m As Double, r12m As Double
-    
-    Sheets("work").Calculate
-    Sheets("Ext").Select
-    
-    lastRow = Cells(Rows.Count, 1).End(xlUp).Row
-    If lastRow < 2 Then Exit Sub
-    
-    For i = 2 To lastRow
-        If Len(Cells(i, 1).Value) = 0 Then Exit For
-        
-        CURRENC = CStr(Cells(i, 8).Value)
-        TENOR = CLng(Val(Cells(i, 20).Value))
-        
-        r1m = FetchRate(CURRENC, 30)
-        r2m = FetchRate(CURRENC, 60)
-        r3m = FetchRate(CURRENC, 90)
-        r6m = FetchRate(CURRENC, 180)
-        r12m = FetchRate(CURRENC, 360)
-        
-        Select Case TENOR
-            Case 1 To 30
-                COF = IIf(r1m = 0, 0, r1m)
-            Case 31 To 60
-                COF = IIf(r2m = 0, 0, r2m)
-            Case 61 To 90
-                COF = IIf(r3m = 0, 0, r3m)
-            Case 91 To 120
-                If r3m = 0 Or r6m = 0 Then COF = 0 Else COF = r3m + (r6m - r3m) / 3#
-            Case 121 To 150
-                If r3m = 0 Or r6m = 0 Then COF = 0 Else COF = r3m + (r6m - r3m) * (2# / 3#)
-            Case 151 To 180
-                COF = IIf(r6m = 0, 0, r6m)
-            Case 181 To 210
-                If r6m = 0 Or r12m = 0 Then COF = 0 Else COF = r6m + (r12m - r6m) * (1# / 6#)
-            Case 211 To 240
-                If r6m = 0 Or r12m = 0 Then COF = 0 Else COF = r6m + (r12m - r6m) * (2# / 6#)
-            Case 241 To 270
-                If r6m = 0 Or r12m = 0 Then COF = 0 Else COF = r6m + (r12m - r6m) * (3# / 6#)
-            Case 271 To 300
-                If r6m = 0 Or r12m = 0 Then COF = 0 Else COF = r6m + (r12m - r6m) * (4# / 6#)
-            Case 301 To 330
-                If r6m = 0 Or r12m = 0 Then COF = 0 Else COF = r6m + (r12m - r6m) * (5# / 6#)
-            Case 331 To 365
-                COF = IIf(r12m = 0, 0, r12m)
-            Case Else
-                If TENOR > 365 Then
-                    COF = IIf(r12m = 0, 0, r12m)
-                Else
-                    COF = 0
-                End If
-        End Select
-        
-        Cells(i, 21).Value = COF
-    Next i
-    
-    Sheets("Ext").Calculate
-End Sub
+---
 
-Private Function FetchRate(ByVal currencyCode As String, ByVal tenorDays As Long) As Double
-    Dim ws As Worksheet, r As Long, lastRow As Long, v As Variant, t As Long
-    Set ws = Sheets("work")
-    lastRow = ws.Cells(ws.Rows.Count, 1).End(xlUp).Row
-    FetchRate = 0
-    For r = 3 To lastRow
-        If CStr(ws.Cells(r, 1).Value) = currencyCode Then
-            t = CLng(Val(ws.Cells(r, 12).Value))
-            If t = tenorDays Then
-                v = ws.Cells(r, 9).Value
-                If VarType(v) = vbString Then
-                    If Trim$(UCase$(CStr(v))) = "RFQ" Or Trim$(CStr(v)) = "" Then
-                        FetchRate = 0
-                    Else
-                        FetchRate = CDbl(Val(v))
-                    End If
-                ElseIf IsNumeric(v) Then
-                    FetchRate = CDbl(v)
-                Else
-                    FetchRate = 0
-                End If
-                Exit Function
-            End If
-        End If
-    Next r
-End Function
+## **Problem Description**
+
+**Coding Hands-on > 2: Medium : Maximum Subarray Sum with K Deletions**
+
+You are given an array **A** of **N** integers and an integer **K**.
+
+You can delete **at most K** elements from the array. Moreover, **deleting an element** effectively bridges the gap between its **left and right neighbour's**, keeping the subarray contiguous.
+
+Find the **maximum sum of a contiguous, non-empty subarray** in the resulting array.
+
+### **Input Format**
+* The first line contains an integer, **N**, denoting the size of array.
+* The next line contains an integer, **K**, denoting the number of max deletion.
+* Each line i of the N subsequent lines (where $0 \le i < N$) contains an integer describing **A[i]**.
+
+### **Constraints**
+* $1 \le N \le 10^5$
+* $1 \le K \le 10^2$
+* $-10^5 \le A[i] \le 10^5$
+
+---
+
+## **Sample Test Cases**
+
+### **Case 1**
+**Input:**
+```
+3
+1
+1
+-5
+2
+```
+**Output:**
+`3`
+
+**Explanation:**
+$N = 3, K = 1$. Array: $[1, -5, 2]$.
+We can delete at most 1 element.
+* Without deletion: Max subarray = 2
+* With deletion: Delete -5. Array becomes $[1, 2]$. Now max contiguous subarray: $1 + 2 = 3$.
+**Output: 3**
+
+### **Case 2**
+**Input:**
+```
+3
+2
+-2
+-3
+-1
+```
+**Output:**
+`-1`
+
+**Explanation:**
+$N = 3, K = 2$. Array: $[-2, -3, -1]$.
+All numbers are negative. Even if we delete elements, subarray must be non-empty.
+Best choice: Pick largest single element: -1.
+**Output: -1**
+
+### **Case 3**
+**Input:**
+```
+6
+2
+1
+-2
+3
+-4
+5
+6
+```
+**Output:**
+`15`
+
+**Explanation:**
+Array: $[1, -2, 3, -4, 5, 6]$.
+Delete -2 and -4.
+Remaining effective subarray: $1 + 3 + 5 + 6 = 15$.
+**Output: 15**
+
+---
+
+## **Python 3 Code Template**
+
+```python
+import sys
+
+def getMaximumValue(N, K, A):
+    # Write your code here
+    pass
+
+def main():
+    N = int(sys.stdin.readline().strip())
+    K = int(sys.stdin.readline().strip())
+    
+    A = []
+    for _ in range(N):
+        A.append(int(sys.stdin.readline().strip()))
+        
+    result = getMaximumValue(N, K, A)
+    
+    print(result)
+
+if __name__ == "__main__":
+    main()
