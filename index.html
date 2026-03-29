@@ -1,364 +1,98 @@
-using System;
-using System.Collections.Generic;
-using System.Globalization;
-using System.IO;
-using System.Linq;
-using System.Text.RegularExpressions;
-using iTextSharp.text;
-using iTextSharp.text.pdf;
+Here is the extracted text from the images, formatted for easy copying and pasting:
+Problem Description
+Coding Hands-on > 3: Hard : Contiguous Zero-Weight Override
+You are given a directed weighted graph with N nodes (numbered 0 to N-1) and M directed edges.
+You start at node 0 and want to reach node N-1 with the minimum possible total path weight.
+You possess a special override ability that you can use at most once during your journey: you can select a contiguous sequence of at most K edges along your path and change their weights to 0.
+Once you stop using the override, you cannot activate it again on the remainder of the path.
+Find the minimum total weight to reach node N-1. If it is impossible to reach the destination, return -1.
+Input Format
+The first line contains an integer, N, denoting the number of nodes.
+The next line contains an integer, M, denoting the number of edges.
+The next line contains an integer, K, denoting the constant K.
+Each line i of the M subsequent lines (where 0 <= i < M) contains 3 space separated integers each describing the row Edges[i].
+The row Edges[i] contains 3 space separated integers denoting an edge between node u to node v and weight w.
+Constraints
+1 <= N <= 500
+1 <= M <= 10^4
+1 <= K <= 20
+1 <= Edges[i][j] <= 10^3
+Sample Test Cases
+Case 1
+Input:
+3
+2
+1
+0 1 10
+1 2 10
 
-namespace BankStatementGenerator
-{
-    class Program
-    {
-        static void Main(string[] args)
-        {
-            if (args.Length < 2)
-            {
-                Console.WriteLine("Usage: BankStatementGenerator.exe <inputPath> <outputPath>");
-                Environment.Exit(1);
-            }
+Output:
+10
 
-            string inputPath = args[0];
-            string outputPath = args[1];
+Explanation:
+Graph:
+0 -> 1 -> 2
+K = 1
+Best strategy:
+Override either edge
+Cost: 10
+Output: 10
+Case 2
+Input:
+4
+4
+2
+0 1 10
+1 2 100
+2 3 100
+0 3 50
 
-            if (File.Exists(inputPath))
-            {
-                try
-                {
-                    var statementData = ParseRptFile(inputPath);
-                    GeneratePdf(statementData, outputPath);
-                    Console.WriteLine($"PDF generated successfully at {outputPath}");
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"Error: {ex.Message}");
-                    Environment.Exit(1);
-                }
-            }
-            else
-            {
-                Console.WriteLine("Input file not found");
-                Environment.Exit(1);
-            }
-        }
+Output:
+10
 
-        static StatementData ParseRptFile(string filePath)
-        {
-            var data = new StatementData();
-            var lines = File.ReadAllLines(filePath).ToList();
-            var validMonths = new[] { "JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC" };
+Explanation:
+Two paths:
+0 -> 3 (cost 50)
+0 -> 1 -> 2 -> 3
+= 10 + 100 + 100 = 210
+Use override on 2 edges in path 2:
+Make 100 and 100 -> 0
+Cost becomes: 10
+Better than 50.
+Output: 10
+Case 3
+Input:
+3
+1
+1
+0 1 5
 
-            int startIndex = lines.FindIndex(line => line.Contains("Consolidated Cash Statement"));
-            if (startIndex == -1) throw new Exception("File format not recognized");
-            
-            data.ClientBasic = CleanValue(ExtractValue(lines, "Client Basic", startIndex, 20));
-            data.StatementPeriod = CleanValue(ExtractValue(lines, "Statement Period", startIndex, 20));
-            
-            int nameIndex = lines.FindIndex(startIndex, line => line.Contains("DICKSON CONCEPTS") || line.Contains("DICKSON    ICEPTS"));
-            if (nameIndex != -1)
-            {
-                data.CompanyName = "DICKSON CONCEPTS (WHOLESALE) LIMITED";
-                
-                var addressLines = lines
-                    .Skip(nameIndex + 1)
-                    .TakeWhile(line => !line.Contains("Account Number") && 
-                                       !line.Contains("ACCOUNT SUMMARY") &&
-                                       !string.IsNullOrWhiteSpace(line))
-                    .Select(CleanValue)
-                    .Where(line => !Regex.IsMatch(line, @"^\d+$"))
-                    .ToList();
-                
-                string fullAddress = string.Join(" ", addressLines);
-                fullAddress = Regex.Replace(fullAddress, @"\bLIMITED\b", "").Trim();
-                fullAddress = Regex.Replace(fullAddress, @"\s+", " ");
-                data.Address = fullAddress;
-            }
+Output:
+-1
 
-            data.AccountNumber = ExtractAccountNumber(lines, startIndex);
-            data.Currency = "HKD";
+Explanation:
+Node 2 unreachable.
+Python 3 Code Template
+import sys
 
-            int balanceIndex = lines.FindIndex(startIndex, line => Regex.IsMatch(line, @"[\d,]+\.\d{2}"));
-            if (balanceIndex != -1)
-            {
-                var balanceLine = lines[balanceIndex];
-                var balanceMatch = Regex.Match(balanceLine, @"([\d,]+\.\d{2})");
-                if (balanceMatch.Success && decimal.TryParse(balanceMatch.Value, NumberStyles.Currency, 
-                    CultureInfo.InvariantCulture, out decimal balance))
-                {
-                    data.OpeningBalance = balance;
-                    data.ClosingBalance = balance;
-                }
-            }
+def getMinimumCost(N, M, K, Edges):
+    # Write your code here
+    pass
 
-            int activitiesIndex = lines.FindIndex(startIndex, line => 
-                line.Contains("ACCOUNT ACTIVITIES") || line.Contains("CURRENT ACCOUNT"));
-            
-            if (activitiesIndex != -1)
-            {
-                int tableStart = lines.FindIndex(activitiesIndex, line => 
-                    Regex.IsMatch(line, @"\d{2}\s[A-Z]{3}"));
-                
-                if (tableStart != -1)
-                {
-                    foreach (var line in lines.Skip(tableStart))
-                    {
-                        if (string.IsNullOrWhiteSpace(line)) break;
-                        if (line.Contains("Page")) continue;
-                        
-                        string cleanLine = CleanValue(line);
-                        
-                        var dateMatch = Regex.Match(cleanLine, @"(\d{2}\s[A-Z]{3})");
-                        if (!dateMatch.Success) continue;
-                        
-                        string monthPart = dateMatch.Value.Split(' ')[1];
-                        if (!validMonths.Contains(monthPart)) continue;
-                        
-                        string date = dateMatch.Value;
-                        string description = ExtractDescription(cleanLine, dateMatch.Index + dateMatch.Length);
-                        decimal balance = ExtractBalance(cleanLine);
+def main():
+    N = int(sys.stdin.readline().strip())
+    
+    M = int(sys.stdin.readline().strip())
+    
+    K = int(sys.stdin.readline().strip())
+    
+    Edges = []
+    for _ in range(M):
+        Edges.append(list(map(lambda x: int(x), sys.stdin.readline().strip().split())))
+        
+    result = getMinimumCost(N, M, K, Edges)
+    
+    print(result)
 
-                        if (balance != 0)
-                        {
-                            data.Activities.Add(new AccountActivity
-                            {
-                                Date = date,
-                                Description = description,
-                                Balance = balance
-                            });
-                        }
-                        
-                        if (cleanLine.Contains("Closing Balance"))
-                        {
-                            data.ClosingBalance = balance;
-                        }
-                    }
-                }
-            }
-
-            return data;
-        }
-
-        static string ExtractAccountNumber(List<string> lines, int startIndex)
-        {
-            int accountIndex = lines.FindIndex(startIndex, line => line.Contains("Account Number"));
-            if (accountIndex != -1)
-            {
-                for (int i = accountIndex + 1; i < lines.Count && i < accountIndex + 10; i++)
-                {
-                    string line = CleanValue(lines[i]);
-                    if (string.IsNullOrWhiteSpace(line)) continue;
-                    
-                    var match = Regex.Match(line, @"[\d-]{8,}");
-                    if (match.Success)
-                    {
-                        return match.Value;
-                    }
-                }
-            }
-            
-            foreach (string line in lines)
-            {
-                var match = Regex.Match(line, @"\d{8,}");
-                if (match.Success)
-                {
-                    return match.Value;
-                }
-            }
-            
-            return "001-0000-001-0";
-        }
-
-        static string ExtractValue(List<string> lines, string key, int startIndex, int range)
-        {
-            var line = lines
-                .Skip(startIndex)
-                .Take(range)
-                .FirstOrDefault(l => l.Contains(key));
-            
-            return line != null ? line.Substring(line.IndexOf(key) + key.Length).Trim() : "";
-        }
-
-        static string CleanValue(string input)
-        {
-            string cleaned = Regex.Replace(input, @"\s*\d+\s*$", "");
-            cleaned = Regex.Replace(cleaned, @"\b\d{12,}\b", "");
-            cleaned = Regex.Replace(cleaned, @"\bLIMITED\b", "", RegexOptions.IgnoreCase).Trim();
-            cleaned = Regex.Replace(cleaned, @"\s+", " ");
-            return cleaned.Trim();
-        }
-
-        static string ExtractDescription(string line, int startIndex)
-        {
-            if (startIndex >= line.Length) return "";
-            
-            var match = Regex.Match(line.Substring(startIndex), @"(.+?)(\d[\d,.]*\d|\d)");
-            return match.Success ? match.Groups[1].Value.Trim() : line.Substring(startIndex).Trim();
-        }
-
-        static decimal ExtractBalance(string line)
-        {
-            var matches = Regex.Matches(line, @"([\d,]+\.\d{2})");
-            return matches.Count > 0 ? 
-                decimal.Parse(matches[^1].Value, NumberStyles.Currency, CultureInfo.InvariantCulture) : 0;
-        }
-
-        static void GeneratePdf(StatementData data, string outputPath)
-        {
-            using (var fs = new FileStream(outputPath, FileMode.Create))
-            {
-                var doc = new Document(PageSize.A4, 25, 25, 30, 30);
-                var writer = PdfWriter.GetInstance(doc, fs);
-                doc.Open();
-
-                var baseFont = BaseFont.CreateFont(
-                    BaseFont.HELVETICA, 
-                    BaseFont.CP1252, 
-                    BaseFont.NOT_EMBEDDED
-                );
-
-                var titleFont = new Font(baseFont, 16, Font.BOLD);
-                doc.Add(new Paragraph("Consolidated Cash Statement", titleFont) 
-                { 
-                    Alignment = Element.ALIGN_CENTER,
-                    SpacingAfter = 10
-                });
-
-                var infoFont = new Font(baseFont, 9);
-                doc.Add(new Paragraph($"Client Basic: {data.ClientBasic}", infoFont));
-                doc.Add(new Paragraph($"Statement Period: {data.StatementPeriod}", infoFont));
-                doc.Add(new Paragraph(data.CompanyName, infoFont));
-                
-                PdfPTable addressTable = new PdfPTable(1);
-                addressTable.WidthPercentage = 100;
-                PdfPCell addressCell = new PdfPCell();
-                addressCell.BackgroundColor = new BaseColor(240, 240, 240);
-                addressCell.Border = Rectangle.NO_BORDER;
-                addressCell.Padding = 5;
-                addressCell.Phrase = new Phrase(data.Address, infoFont);
-                addressTable.AddCell(addressCell);
-                doc.Add(addressTable);
-                
-                doc.Add(Chunk.NEWLINE);
-
-                var summaryTable = new PdfPTable(6);
-                summaryTable.WidthPercentage = 100;
-                summaryTable.SetWidths(new float[] { 2, 3, 1, 2, 2, 2 });
-
-                var headerFont = new Font(baseFont, 9, Font.BOLD);
-                AddTableHeader(summaryTable, "Account Type", headerFont);
-                AddTableHeader(summaryTable, "Account Number", headerFont);
-                AddTableHeader(summaryTable, "CCY ID", headerFont);
-                AddTableHeader(summaryTable, "Balance", headerFont);
-                AddTableHeader(summaryTable, "Exch Rate as at 31/10", headerFont);
-                AddTableHeader(summaryTable, "HKD Equivalent", headerFont);
-
-                var dataFont = new Font(baseFont, 9);
-                AddTableCell(summaryTable, "Current", dataFont);
-                AddTableCell(summaryTable, data.AccountNumber, dataFont);
-                AddTableCell(summaryTable, "HKD", dataFont);
-                AddTableCell(summaryTable, data.OpeningBalance.ToString("N2"), dataFont, Element.ALIGN_RIGHT);
-                AddTableCell(summaryTable, "1.0000000", dataFont, Element.ALIGN_RIGHT);
-                AddTableCell(summaryTable, data.OpeningBalance.ToString("N2"), dataFont, Element.ALIGN_RIGHT);
-
-                doc.Add(summaryTable);
-                doc.Add(Chunk.NEWLINE);
-
-                var sectionFont = new Font(baseFont, 10, Font.BOLD);
-                doc.Add(new Paragraph($"CURRENT ACCOUNT   {data.AccountNumber}   HKD", sectionFont));
-                doc.Add(Chunk.NEWLINE);
-
-                var activityTable = new PdfPTable(5);
-                activityTable.WidthPercentage = 100;
-                activityTable.SetWidths(new float[] { 1.5f, 5f, 2f, 2f, 2f });
-
-                AddTableHeader(activityTable, "Date", headerFont);
-                AddTableHeader(activityTable, "Transaction Details", headerFont);
-                AddTableHeader(activityTable, "Deposit", headerFont);
-                AddTableHeader(activityTable, "Withdrawal", headerFont);
-                AddTableHeader(activityTable, "Balance", headerFont);
-
-                foreach (var activity in data.Activities.Where(a => !a.Description.Contains("HKD")))
-                {
-                    AddTableCell(activityTable, activity.Date, dataFont);
-                    AddTableCell(activityTable, activity.Description, dataFont);
-                    AddTableCell(activityTable, "0.00", dataFont, Element.ALIGN_RIGHT);
-                    AddTableCell(activityTable, "0.00", dataFont, Element.ALIGN_RIGHT);
-                    AddTableCell(activityTable, activity.Balance.ToString("N2"), dataFont, Element.ALIGN_RIGHT);
-                }
-
-                AddTableCell(activityTable, "", dataFont);
-                AddTableCell(activityTable, "Total Credit-Debit Amounts", headerFont);
-                AddTableCell(activityTable, "0.00", dataFont, Element.ALIGN_RIGHT);
-                AddTableCell(activityTable, "0.00", dataFont, Element.ALIGN_RIGHT);
-                AddTableCell(activityTable, data.ClosingBalance.ToString("N2"), dataFont, Element.ALIGN_RIGHT);
-
-                doc.Add(activityTable);
-                doc.Add(Chunk.NEWLINE);
-                doc.Add(Chunk.NEWLINE);
-
-                var noticeFont = new Font(baseFont, 9, Font.BOLD);
-                doc.Add(new Paragraph("IMPORTANT", noticeFont));
-                
-                var normalFont = new Font(baseFont, 9);
-                doc.Add(new Paragraph("THIS STATEMENT WILL BE CONSIDERED CORRECT IF NO ERROR OR OMISSION " +
-                    "IS REPORTED TO THE BANK WITHIN 90 DAYS OF STATEMENT POSTING DATE.", normalFont));
-                doc.Add(new Paragraph("For complaints, please call our Client Services section " +
-                    "at 2108 5449 or email us at csd_herojemo@eec.sorgevans.com.", normalFont));
-
-                var footer = new Paragraph("PAGE    1 OF    1", new Font(baseFont, 9))
-                {
-                    Alignment = Element.ALIGN_CENTER
-                };
-                doc.Add(footer);
-
-                doc.Close();
-            }
-        }
-
-        static void AddTableHeader(PdfPTable table, string text, Font font)
-        {
-            var cell = new PdfPCell(new Phrase(text, font))
-            {
-                BackgroundColor = new BaseColor(220, 220, 220),
-                HorizontalAlignment = Element.ALIGN_CENTER,
-                Padding = 5,
-                PaddingTop = 3,
-                PaddingBottom = 3
-            };
-            table.AddCell(cell);
-        }
-
-        static void AddTableCell(PdfPTable table, string text, Font font, int alignment = Element.ALIGN_LEFT)
-        {
-            var cell = new PdfPCell(new Phrase(text, font))
-            {
-                Padding = 5,
-                PaddingTop = 3,
-                PaddingBottom = 3,
-                HorizontalAlignment = alignment
-            };
-            table.AddCell(cell);
-        }
-    }
-
-    public class StatementData
-    {
-        public string ClientBasic { get; set; } = "00001-000068";
-        public string StatementPeriod { get; set; } = "01/10/24-31/10/24";
-        public string CompanyName { get; set; } = "DICKSON CONCEPTS (WHOLESALE) LIMITED";
-        public string Address { get; set; } = "4/F EAST OCEAN CENTRE, 98 GRANVILLE ROAD, TSIM SHA TSUI, HONG KONG";
-        public string AccountNumber { get; set; } = "001-0000-001-0";
-        public string Currency { get; set; } = "HKD";
-        public decimal OpeningBalance { get; set; } = 46972.84M;
-        public decimal ClosingBalance { get; set; } = 46972.84M;
-        public List<AccountActivity> Activities { get; set; } = new List<AccountActivity>();
-    }
-
-    public class AccountActivity
-    {
-        public string Date { get; set; }
-        public string Description { get; set; }
-        public decimal Balance { get; set; }
-    }
-}
+if __name__ == "__main__":
+    main()
