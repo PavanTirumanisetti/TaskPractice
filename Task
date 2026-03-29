@@ -1,0 +1,90 @@
+Here is the extracted text from the images, ready for you to copy and paste.
+Problem Description
+Coding Hands-on > 1: Easy : Dual Conveyor Merge
+A factory has two conveyor belts, A and B, feeding items to a single packing station.
+Belt A carries N items with values a[0], a[1], ..., a[N-1], and Belt B carries M items with values b[0], b[1], ..., b[M-1]. Items on each belt are queued: you can only take the front item from a belt (i.e., a[0] must be taken before a[1], and b[0] before b[1]).
+At each step, you take the front item from either Belt A or Belt B. The k-th item packed overall (1-indexed) receives a priority multiplier of k. So if an item with value v is packed at position k, it contributes v * k to the total score.
+Find the maximum total score achievable by optimally choosing which belt to pick from at each step.
+Note:
+ * It is given that arrays are 1 indexed.
+Input Format
+The first line contains an integer, N, denoting the number of items on Belt A.
+The next line contains an integer, M, denoting the number of items on Belt B.
+Each line i of the N subsequent lines (where 1 <= i <= N) contains an integer describing A[i].
+Each line i of the M subsequent lines (where 1 <= i <= M) contains an integer describing B[i].
+Constraints
+1 <= N <= 10^5
+1 <= M <= 10^5
+1 <= A[i] <= 10000
+1 <= B[i] <= 10000
+Sample Test Cases
+Case 1
+Input:
+2
+2
+10
+1
+5
+5
+
+Output:
+49
+
+Explanation:
+Taking the items in the order of 5 from Belt B, 5 from Belt B, 10 from Belt A, and finally 1 from Belt A applies the increasing position multipliers to each value respectively to achieve a maximum total score of 49.
+Case 2
+Input:
+2
+2
+100
+1
+10
+10
+
+Output:
+334
+
+Explanation:
+Selecting the sequence of 10 from Belt B, 10 from Belt B, 100 from Belt A, and 1 from Belt A ensures that the large value of 100 receives a strong position multiplier of 3 before adding the final piece to reach a sum of 334.
+Case 3
+Input:
+3
+3
+1
+2
+3
+1
+2
+4
+
+Output:
+56
+
+Explanation:
+By interleaving the items and taking 1 from Belt A, 1 from Belt B, 2 from Belt A, 2 from Belt B, 3 from Belt A, and finally 4 from Belt B, the progressively larger values are pushed to the later positions to receive the highest position multipliers of 1 through 6 respectively, yielding individual scores of 1, 2, 6, 8, 15, and 24 that sum up to a maximum total score of 56.
+Python 3 Code Template
+import sys
+
+def MaxScore(N, M, A, B):
+    # Write your code here
+    pass
+
+def main():
+    N = int(sys.stdin.readline().strip())
+    
+    M = int(sys.stdin.readline().strip())
+    
+    A = []
+    for _ in range(N):
+        A.append(int(sys.stdin.readline().strip()))
+        
+    B = []
+    for _ in range(M):
+        B.append(int(sys.stdin.readline().strip()))
+        
+    result = MaxScore(N, M, A, B)
+    
+    print(result)
+
+if __name__ == "__main__":
+    main()
