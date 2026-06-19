@@ -1,111 +1,68 @@
-Based on the images provided, here is the transcribed text from the coding problem and the Python template.
+Here is the full text extracted from the provided HackerRank images (`0d477ce3-2baa-471c-9f9d-96930884fb67.jpeg`, `014d9a17-ae96-4701-a571-57220ef20977.jpeg`, and `5a5d1edb-de4d-4d24-9e7f-5c7937b62e19.jpg`).
 
 ---
 
-## **Problem Description**
+## 1. Conference Schedule
 
-**Coding Hands-on > 2: Medium : Maximum Subarray Sum with K Deletions**
+You are given *n* presentations, each with:
 
-You are given an array **A** of **N** integers and an integer **K**.
+* A start time in *scheduleStart*
+* An end time in *scheduleEnd*
 
-You can delete **at most K** elements from the array. Moreover, **deleting an element** effectively bridges the gap between its **left and right neighbour's**, keeping the subarray contiguous.
+A person may attend a presentation only if:
 
-Find the **maximum sum of a contiguous, non-empty subarray** in the resulting array.
+* They are present for the entire duration of the presentation
+* They can move between presentations instantly (no travel time)
 
-### **Input Format**
-* The first line contains an integer, **N**, denoting the size of array.
-* The next line contains an integer, **K**, denoting the number of max deletion.
-* Each line i of the N subsequent lines (where $0 \le i < N$) contains an integer describing **A[i]**.
+Your task is to determine the maximum number of presentations one person can attend without time overlaps.
 
-### **Constraints**
-* $1 \le N \le 10^5$
-* $1 \le K \le 10^2$
-* $-10^5 \le A[i] \le 10^5$
+Return that maximum number.
 
----
+### Example
 
-## **Sample Test Cases**
+Suppose there are *n* = 3 events, *scheduleStart* = [1, 1, 2], and *scheduleEnd* = [3, 2, 4].
+Output: 2
 
-### **Case 1**
-**Input:**
-```
-3
-1
-1
--5
-2
-```
-**Output:**
-`3`
+Possible combinations:
 
-**Explanation:**
-$N = 3, K = 1$. Array: $[1, -5, 2]$.
-We can delete at most 1 element.
-* Without deletion: Max subarray = 2
-* With deletion: Delete -5. Array becomes $[1, 2]$. Now max contiguous subarray: $1 + 2 = 3$.
-**Output: 3**
+* Attend presentation 0 only (time 1-3)
+* Attend presentation 1 only (time 1-2)
+* Attend presentation 2 only (time 2-4)
+* Attend presentations 1 and 2 (times 1-2, then 2-4)
 
-### **Case 2**
-**Input:**
-```
-3
-2
--2
--3
--1
-```
-**Output:**
-`-1`
+### Constraints
 
-**Explanation:**
-$N = 3, K = 2$. Array: $[-2, -3, -1]$.
-All numbers are negative. Even if we delete elements, subarray must be non-empty.
-Best choice: Pick largest single element: -1.
-**Output: -1**
+* $1 \le n \le 10^5$
+* $1 \le scheduleStart[i], scheduleEnd[i] \le 10^9$
 
-### **Case 3**
-**Input:**
-```
-6
-2
-1
--2
-3
--4
-5
-6
-```
-**Output:**
-`15`
+### Test Case Input Format
 
-**Explanation:**
-Array: $[1, -2, 3, -4, 5, 6]$.
-Delete -2 and -4.
-Remaining effective subarray: $1 + 3 + 5 + 6 = 15$.
-**Output: 15**
+The first line contains the integer *n*.
+The next *n* lines contain an integer element of *scheduleStart[ ]*.
+The next line contains the integer *n*.
+The next *n* lines contain an integer element of *scheduleEnd[ ]*.
 
 ---
 
-## **Python 3 Code Template**
+## Code Editor Setup
+
+**Language:** Python 2
 
 ```python
-import sys
+1  > #!/bin/python...
+10 
+11   #
+12   # Complete the 'maxPresentations' function below.
+13   #
+14   # The function is expected to return an INTEGER.
+15   # The function accepts following parameters:
+16   #  1. INTEGER_ARRAY scheduleStart
+17   #  2. INTEGER_ARRAY scheduleEnd
+18   #
+19 
+20   def maxPresentations(scheduleStart, scheduleEnd):
+21       # Write your code here
+22 
+23 > if __name__ == '__main__':
 
-def getMaximumValue(N, K, A):
-    # Write your code here
-    pass
-
-def main():
-    N = int(sys.stdin.readline().strip())
-    K = int(sys.stdin.readline().strip())
-    
-    A = []
-    for _ in range(N):
-        A.append(int(sys.stdin.readline().strip()))
-        
-    result = getMaximumValue(N, K, A)
-    
-    print(result)
-
-if __name__ == "__main__":
-    main()
+```
