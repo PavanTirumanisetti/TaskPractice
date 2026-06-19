@@ -1,68 +1,82 @@
-Here is the full text extracted from the provided HackerRank images (`0d477ce3-2baa-471c-9f9d-96930884fb67.jpeg`, `014d9a17-ae96-4701-a571-57220ef20977.jpeg`, and `5a5d1edb-de4d-4d24-9e7f-5c7937b62e19.jpg`).
+Here is the complete text extracted from the provided HackerRank images (`1f3ac0c2-4c4f-4fd1-b848-4794b7e45b39.jpeg`, `c40f67c2-4bcb-495b-b887-067b143b2176.jpeg`, and `f786aba2-cb43-47f6-8859-a9ecbc41e177.jpeg`).
 
 ---
 
-## 1. Conference Schedule
+## 3. REST API: IP Tracker
 
-You are given *n* presentations, each with:
+A REST API contains information about IP addresses. Given an IP address, make a fetch call to the REST API to fetch its information and find its country of origin.
 
-* A start time in *scheduleStart*
-* An end time in *scheduleEnd*
+Perform an HTTP GET request to:
+`https://jsonmock.hackerrank.com/api/ip?ip=<ip>`
+where `<ip>` is the IP address to query.
 
-A person may attend a presentation only if:
+For example, a GET request to:
+`https://jsonmock.hackerrank.com/api/ip?ip=172.217.20.46`
+will return the information for the IP address 172.217.20.46
 
-* They are present for the entire duration of the presentation
-* They can move between presentations instantly (no travel time)
+The response is a JSON object with the following 5 fields:
 
-Your task is to determine the maximum number of presentations one person can attend without time overlaps.
+* **page**: the current page of the results (1)
+* **per_page**: the maximum number of results returned per page
+* **total**: the total number of results (1 or 0)
+* **total_pages**: the total number of pages with results (1)
+* **data**: Either an empty array or an array with a single IP record object in the following form:
+* `ip`: IP address [STRING]
+* `country`: associated country code [STRING]
 
-Return that maximum number.
 
-### Example
 
-Suppose there are *n* = 3 events, *scheduleStart* = [1, 1, 2], and *scheduleEnd* = [3, 2, 4].
-Output: 2
+Below is an example of an IP record:
 
-Possible combinations:
+```json
+{
+  "ip": "172.217.20.46",
+  "country": "US"
+}
 
-* Attend presentation 0 only (time 1-3)
-* Attend presentation 1 only (time 1-2)
-* Attend presentation 2 only (time 2-4)
-* Attend presentations 1 and 2 (times 1-2, then 2-4)
+```
+
+Please note that you will get the data from page 1 as any given IP just has a single record (if any). Page 1 is the default page returned on an API hit. No further page hits are required.
+
+Given an IP, the goal is to get the country associated with this IP.
+
+### Function Description
+
+Complete the function `ipTracker` in the editor below.
+
+`ipTracker` has the following parameter:
+
+* **ip**: IP address which we want to track [STRING]
+
+### Returns
+
+* If no record is returned, return the string `'No Result Found'`.
+* If an IP record is received, return the country code [STRING].
 
 ### Constraints
 
-* $1 \le n \le 10^5$
-* $1 \le scheduleStart[i], scheduleEnd[i] \le 10^9$
-
-### Test Case Input Format
-
-The first line contains the integer *n*.
-The next *n* lines contain an integer element of *scheduleStart[ ]*.
-The next line contains the integer *n*.
-The next *n* lines contain an integer element of *scheduleEnd[ ]*.
+* There will be only one page per query.
+* There will be 0 or 1 record in the response.
 
 ---
 
-## Code Editor Setup
+### Input Format For Custom Testing
 
-**Language:** Python 2
+#### Sample Case 0
 
-```python
-1  > #!/bin/python...
-10 
-11   #
-12   # Complete the 'maxPresentations' function below.
-13   #
-14   # The function is expected to return an INTEGER.
-15   # The function accepts following parameters:
-16   #  1. INTEGER_ARRAY scheduleStart
-17   #  2. INTEGER_ARRAY scheduleEnd
-18   #
-19 
-20   def maxPresentations(scheduleStart, scheduleEnd):
-21       # Write your code here
-22 
-23 > if __name__ == '__main__':
+**Sample Input For Custom Testing**
+
+```text
+172.217.20.46
 
 ```
+
+**Sample Output**
+
+```text
+US
+
+```
+
+**Explanation**
+The IP address is queried and the country is returned.
