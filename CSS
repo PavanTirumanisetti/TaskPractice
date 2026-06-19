@@ -1,82 +1,84 @@
-Here is the complete text extracted from the provided HackerRank images (`1f3ac0c2-4c4f-4fd1-b848-4794b7e45b39.jpeg`, `c40f67c2-4bcb-495b-b887-067b143b2176.jpeg`, and `f786aba2-cb43-47f6-8859-a9ecbc41e177.jpeg`).
+Here is the complete text extracted from the provided HackerRank images (`IMG_6131.jpg`, `IMG_6132.jpg`, `IMG_6134.jpg`, and `IMG_6135.jpg`).
 
 ---
 
-## 3. REST API: IP Tracker
+## 1. Efficient Janitor
 
-A REST API contains information about IP addresses. Given an IP address, make a fetch call to the REST API to fetch its information and find its country of origin.
+A janitor must carry waste bags to an outside trash bin. Each bag:
 
-Perform an HTTP GET request to:
-`https://jsonmock.hackerrank.com/api/ip?ip=<ip>`
-where `<ip>` is the IP address to query.
+* Weighs between 1.01 and 3.00 pounds
+* Can be carried along with other bags as long as the total weight $\le$ 3.00 pounds
 
-For example, a GET request to:
-`https://jsonmock.hackerrank.com/api/ip?ip=172.217.20.46`
-will return the information for the IP address 172.217.20.46
+You are given an array *weight[]* where *weight[i]* is the weight of the $i^{th}$ bag.
 
-The response is a JSON object with the following 5 fields:
+Your task is to:
 
-* **page**: the current page of the results (1)
-* **per_page**: the maximum number of results returned per page
-* **total**: the total number of results (1 or 0)
-* **total_pages**: the total number of pages with results (1)
-* **data**: Either an empty array or an array with a single IP record object in the following form:
-* `ip`: IP address [STRING]
-* `country`: associated country code [STRING]
+* Determine the minimum number of trips needed to carry all bags
+* Each trip may include one or more bags, but their combined weight must not exceed 3.00
 
+Return the minimum number of trips required.
 
+### Example
 
-Below is an example of an IP record:
+Suppose there are 5 bags with *weight* = [1.01, 1.99, 2.5, 1.5, 1.01]
+Output: 3
 
-```json
-{
-  "ip": "172.217.20.46",
-  "country": "US"
-}
+**Explanation:**
 
-```
-
-Please note that you will get the data from page 1 as any given IP just has a single record (if any). Page 1 is the default page returned on an API hit. No further page hits are required.
-
-Given an IP, the goal is to get the country associated with this IP.
-
-### Function Description
-
-Complete the function `ipTracker` in the editor below.
-
-`ipTracker` has the following parameter:
-
-* **ip**: IP address which we want to track [STRING]
-
-### Returns
-
-* If no record is returned, return the string `'No Result Found'`.
-* If an IP record is received, return the country code [STRING].
+1. **First trip:** bags with weights 1.01 and 1.99 (total: 3.00 pounds)
+2. **Second trip:** bag with weight 2.5 (total: 2.50 pounds)
+3. **Third trip:** bags with weights 1.5 and 1.01 (total: 2.51 pounds)
 
 ### Constraints
 
-* There will be only one page per query.
-* There will be 0 or 1 record in the response.
+* $1 \le \text{size of } weight[] \le 1000$
+* $1.01 \le weight[i] \le 3.0$
+
+### Test Case Input Format
+
+The first line contains the integer *n*, the size of *weight[]*.
+The next n lines contain a float element of *weight[]*.
 
 ---
 
-### Input Format For Custom Testing
+## Code Editor Setup
 
-#### Sample Case 0
+**Language:** Python 3
 
-**Sample Input For Custom Testing**
+```python
+#!/bin/python3
 
-```text
-172.217.20.46
+import math
+import os
+import random
+import re
+import sys
+
+#
+# Complete the 'efficientJanitor' function below.
+#
+# The function is expected to return an INTEGER.
+# The function accepts FLOAT_ARRAY weight as parameter.
+#
+
+def efficientJanitor(weight):
+    # Write your code here
+
+if __name__ == '__main__':
+    fptr = open(os.environ['OUTPUT_PATH'], 'w')
+
+    weight_count = int(input().strip())
+
+    weight = []
+
+    for _ in range(weight_count):
+        weight_item = float(input().strip())
+        weight.append(weight_item)
+
+    result = efficientJanitor(weight)
+
+    fptr.write(str(result) + '\n')
+
+    fptr.close()
 
 ```
-
-**Sample Output**
-
-```text
-US
-
-```
-
-**Explanation**
-The IP address is queried and the country is returned.
