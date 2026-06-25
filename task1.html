@@ -22,7 +22,7 @@ Sub Button2_Click()
         locCol = locRange.Column
     Else
         ' Fallback placeholder column if header "LOC" is not found
-        locCol = 11 ' Adjust this column index if you know the exact column letter (e.g., 11 for K)
+        locCol = 11 ' Column K
     End If
     
     ' Variables to store sums for Case 1 and Case 2
@@ -35,11 +35,6 @@ Sub Button2_Click()
     Dim valZ As Double
     Dim destCol As String
     
-    ' Clear prior entries in target rows to prevent doubling up on multiple runs (Optional but recommended)
-    ' wsInside.Range("D6:AJ6").ClearContents
-    ' wsInside.Range("D8:AJ8").ClearContents
-    ' wsInside.Range("D9:AJ9").ClearContents
-
     ' --- PROCESS CASE 1 & CASE 2 (Looping through GL Sheet) ---
     For i = 2 To lastRowGL
         Dim locVal As String
@@ -54,8 +49,7 @@ Sub Button2_Click()
             If wsGL.Cells(i, "A").Value = 1010000 Then
                 If ccy = "QAR" Then
                     case1_LC = case1_LC + valZ
-                ElsexlF = "USD"
-                If ccy = "USD" Then
+                ElseIf ccy = "USD" Then
                     case1_USD = case1_USD + valZ
                 Else
                     case1_Other = case1_Other + valZ
@@ -86,7 +80,6 @@ Sub Button2_Click()
     wsInside.Cells(8, "AG").Value = case2_Other
     
     ' --- PROCESS CASE 3: Others (Row 9) ---
-    ' Assuming a row-by-row synchronization or alignment between GL and Deals filters
     Dim maxRows As Long
     maxRows = IIf(lastRowGL > lastRowDeals, lastRowGL, lastRowDeals)
     
