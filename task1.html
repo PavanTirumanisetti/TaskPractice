@@ -1,323 +1,144 @@
-'================================================================================
-' MACRO: Button2_Click
-' PURPOSE: Populate "Inside Qatar" sheet's Residual Contractual Maturity grid
-'          from source sheets GL and Deals.
-'
-' ASSUMPTIONS / COLUMNS THAT YOU SHOULD VERIFY (set once at top, easy to fix):
-'   - GL sheet:      A = GL code, D/E = filter fields, AE = filter field,
-'                     I = currency code (QAR/USD/Other), Z = amount,
-'                     H = LOC (location) field, confirmed = "QA" for QA rows
-'   - Deals sheet:   AH = Age (days, used for Case 3 bucketing only),
-'                     D/E/AE = filter fields (same meaning as GL: AE=2,
-'                     D=20453, E=31 means "Others")
-'   - Inside Qatar:  Row 3 = bucket headers, Row 4 = LC/USD/OtherFC sub-headers
-'                     Column C = row labels (Cash and Cash Equivalents = row 6,
-'                     Required Reserve = row 8, Others = row 9)
-'                     Columns D:F = Overnight, G:I = >1-7d, J:L = >7-15d,
-'                     M:O = >15-30d, P:R = >1-3mo, S:U = >3-6mo, V:X = >6-12mo,
-'                     Y:AA = >1-3y, AB:AD = >3-5y, AE:AG = >5y, AH:AJ = No
-'                     contractual maturity (each triple = LC, USD, Other FC)
-'
-' CASE 3 SCOPE (per your confirmation): only the "Others" row (row 9) is
-' populated. There is no E-ordinal -> row mapping for any other balance
-' sheet line, so only E = 31 records are processed.
-'================================================================================
-
-Option Explicit
-
-' ---- CONFIGURABLE COLUMN MAP (change here if a column letter is wrong) ----
-Const GL_COL_CODE As String = "A"      ' GL account code (1010000 etc.)
-Const GL_COL_D As String = "D"         ' Case 2 filter field
-Const GL_COL_E As String = "E"         ' Case 2 filter field
-Const GL_COL_AE As String = "AE"       ' Case 2 filter field
-Const GL_COL_CCY As String = "I"       ' currency code column in GL
-Const GL_COL_AMT As String = "Z"       ' amount column in GL
-Const GL_COL_LOC As String = "H"       ' LOC column in GL (confirmed)
-
-Const DEALS_COL_AGE As String = "AH"   ' Age (days) column in Deals
-Const DEALS_COL_D As String = "D"      ' filter field (20453)
-Const DEALS_COL_E As String = "E"      ' filter field (31 = Others row)
-Const DEALS_COL_AE As String = "AE"    ' filter field (=2)
-
-' Inside Qatar target rows
-Const ROW_CASH As Long = 6             ' Cash and Cash Equivalents
-Const ROW_RESERVE As Long = 8          ' Required Reserve
-Const ROW_OTHERS As Long = 9           ' Others (Case 3, E = 31)
-
-' "No contractual maturity" bucket columns on Inside Qatar (LC, USD, OtherFC)
-Const COL_NCM_LC As String = "AH"
-Const COL_NCM_USD As String = "AI"
-Const COL_NCM_OTHERFC As String = "AJ"
-
 Sub Button2_Click()
-
-    Dim wsGL As Worksheet, wsDeals As Worksheet, wsIQ As Worksheet
+    Dim wsInside As Worksheet
+    Dim wsGL As Worksheet
+    Dim wsDeals As Worksheet
+    
+    Set wsInside = ThisWorkbook.Sheets("Inside Qatar")
     Set wsGL = ThisWorkbook.Sheets("GL")
     Set wsDeals = ThisWorkbook.Sheets("Deals")
-    Set wsIQ = ThisWorkbook.Sheets("Inside Qatar")
-
-    Application.ScreenUpdating = False
-    Application.Calculation = xlCalculationManual
-
-    ' Clear any previous run's output first so re-running the macro
-    ' doesn't double-count. Adjust range if your sheet has more data rows.
-    ClearPreviousOutput wsIQ
-
-    Case1_CashAndCashEquivalents wsGL, wsIQ
-    Case2_RequiredReserve wsGL, wsIQ
-    Case3_FromDeals wsGL, wsDeals, wsIQ
-
-    Application.Calculation = xlCalculationAutomatic
-    Application.ScreenUpdating = True
-
-    MsgBox "Inside Qatar sheet has been populated.", vbInformation
-
-End Sub
-
-'--------------------------------------------------------------------------------
-' Clears prior macro output so re-runs don't double count.
-' NOTE: adjust LAST_ROW if your "Inside Qatar" sheet's data area is bigger.
-'--------------------------------------------------------------------------------
-Sub ClearPreviousOutput(wsIQ As Worksheet)
-    Const LAST_ROW As Long = 60   ' <-- VERIFY: last row of the BS items section
-    Dim rng As Range
-    Set rng = wsIQ.Range("D6:AJ" & LAST_ROW)
-    rng.ClearContents
-End Sub
-
-'================================================================================
-' CASE 1: Cash and Cash Equivalents (row 6)
-'   GL filter: Column A = 1010000
-'   AND LOC is blank OR "QA"
-'   Sum Column Z, split by currency in Column I:
-'       QAR -> Inside Qatar AH6 (LC)
-'       USD -> Inside Qatar AI6 (USD)
-'       other (not QAR, not USD) -> Inside Qatar AJ6 (Other FC)
-'================================================================================
-Sub Case1_CashAndCashEquivalents(wsGL As Worksheet, wsIQ As Worksheet)
-
-    Dim lastRow As Long, i As Long
-    Dim sumLC As Double, sumUSD As Double, sumOther As Double
-    Dim ccy As String, loc As String
-    Dim acctCode As Variant, amt As Double
-
-    lastRow = wsGL.Cells(wsGL.Rows.Count, GL_COL_CODE).End(xlUp).Row
-
-    For i = 2 To lastRow ' assumes row 1 = headers
-        acctCode = wsGL.Cells(i, GL_COL_CODE).Value
-
-        If Trim(CStr(acctCode)) = "1010000" Then
-
-            loc = Trim(CStr(wsGL.Cells(i, GL_COL_LOC).Value))
-
-            If loc = "" Or UCase(loc) = "QA" Then
-
-                ccy = Trim(UCase(CStr(wsGL.Cells(i, GL_COL_CCY).Value)))
-                amt = NzNum(wsGL.Cells(i, GL_COL_AMT).Value)
-
-                Select Case ccy
-                    Case "QAR"
-                        sumLC = sumLC + amt
-                    Case "USD"
-                        sumUSD = sumUSD + amt
-                    Case Else
-                        sumOther = sumOther + amt
-                End Select
-
-            End If
-        End If
-    Next i
-
-    wsIQ.Range(COL_NCM_LC & ROW_CASH).Value = sumLC
-    wsIQ.Range(COL_NCM_USD & ROW_CASH).Value = sumUSD
-    wsIQ.Range(COL_NCM_OTHERFC & ROW_CASH).Value = sumOther
-
-End Sub
-
-'================================================================================
-' CASE 2: Required Reserve (row 8)
-'   GL filter: Column AE = 2 AND Column D = 20453 AND Column E = 31
-'   AND LOC is blank OR "QA"
-'   Sum Column Z, split by currency in Column I (same logic as Case 1)
-'================================================================================
-Sub Case2_RequiredReserve(wsGL As Worksheet, wsIQ As Worksheet)
-
-    Dim lastRow As Long, i As Long
-    Dim sumLC As Double, sumUSD As Double, sumOther As Double
-    Dim ccy As String, loc As String
-    Dim valAE As Variant, valD As Variant, valE As Variant, amt As Double
-
-    lastRow = wsGL.Cells(wsGL.Rows.Count, GL_COL_CODE).End(xlUp).Row
-
-    For i = 2 To lastRow
-        valAE = wsGL.Cells(i, GL_COL_AE).Value
-        valD = wsGL.Cells(i, GL_COL_D).Value
-        valE = wsGL.Cells(i, GL_COL_E).Value
-
-        If NzNum(valAE) = 2 And NzNum(valD) = 20453 And NzNum(valE) = 31 Then
-
-            loc = Trim(CStr(wsGL.Cells(i, GL_COL_LOC).Value))
-
-            If loc = "" Or UCase(loc) = "QA" Then
-
-                ccy = Trim(UCase(CStr(wsGL.Cells(i, GL_COL_CCY).Value)))
-                amt = NzNum(wsGL.Cells(i, GL_COL_AMT).Value)
-
-                Select Case ccy
-                    Case "QAR"
-                        sumLC = sumLC + amt
-                    Case "USD"
-                        sumUSD = sumUSD + amt
-                    Case Else
-                        sumOther = sumOther + amt
-                End Select
-
-            End If
-        End If
-    Next i
-
-    wsIQ.Range(COL_NCM_LC & ROW_RESERVE).Value = sumLC
-    wsIQ.Range(COL_NCM_USD & ROW_RESERVE).Value = sumUSD
-    wsIQ.Range(COL_NCM_OTHERFC & ROW_RESERVE).Value = sumOther
-
-End Sub
-
-'================================================================================
-' CASE 3: "Others" row (row 9) ONLY.
-'   Per your confirmation: Case 3 populates ONLY the Others row -- there is no
-'   mapping for other E ordinals, so those are not handled at all.
-'
-'   Filter (applied to BOTH GL and Deals, row-for-row / same row index):
-'       Column AE = 2 AND Column D = 20453 AND Column E = 31
-'   Amount = GL's Column Z (NOT a Deals amount column).
-'   Bucket = determined by Deals' Column AH (Age in days) on the SAME row
-'            index as the matching GL row (GL and Deals are assumed to be
-'            row-aligned extracts of the same underlying population).
-'   Currency split = GL's Column I (QAR -> LC, USD -> USD, else -> Other FC).
-'================================================================================
-Sub Case3_FromDeals(wsGL As Worksheet, wsDeals As Worksheet, wsIQ As Worksheet)
-
-    Dim lastRowGL As Long, lastRowDeals As Long, lastRow As Long, i As Long
-    Dim glAE As Variant, glD As Variant, glE As Variant
-    Dim dealsAE As Variant, dealsD As Variant, dealsE As Variant
-    Dim age As Variant, ccy As String, amt As Double
-    Dim lcCol As String, usdCol As String, otherCol As String
-
-    lastRowGL = wsGL.Cells(wsGL.Rows.Count, GL_COL_CODE).End(xlUp).Row
-    lastRowDeals = wsDeals.Cells(wsDeals.Rows.Count, DEALS_COL_AGE).End(xlUp).Row
-    lastRow = Application.WorksheetFunction.Min(lastRowGL, lastRowDeals)
-
-    For i = 2 To lastRow
-
-        glAE = wsGL.Cells(i, GL_COL_AE).Value
-        glD = wsGL.Cells(i, GL_COL_D).Value
-        glE = wsGL.Cells(i, GL_COL_E).Value
-
-        dealsAE = wsDeals.Cells(i, DEALS_COL_AE).Value
-        dealsD = wsDeals.Cells(i, DEALS_COL_D).Value
-        dealsE = wsDeals.Cells(i, DEALS_COL_E).Value
-
-        ' Apply the SAME filter to both sheets on this row index
-        If NzNum(glAE) = 2 And NzNum(glD) = 20453 And NzNum(glE) = 31 And _
-           NzNum(dealsAE) = 2 And NzNum(dealsD) = 20453 And NzNum(dealsE) = 31 Then
-
-            amt = NzNum(wsGL.Cells(i, GL_COL_AMT).Value)        ' GL Column Z
-            ccy = Trim(UCase(CStr(wsGL.Cells(i, GL_COL_CCY).Value))) ' GL Column I
-            age = wsDeals.Cells(i, DEALS_COL_AGE).Value             ' Deals Column AH
-
-            GetIQBucketColumns age, lcCol, usdCol, otherCol
-
-            If amt <> 0 Then
-                Select Case ccy
-                    Case "QAR"
-                        wsIQ.Range(lcCol & ROW_OTHERS).Value = _
-                            NzNum(wsIQ.Range(lcCol & ROW_OTHERS).Value) + amt
-                    Case "USD"
-                        wsIQ.Range(usdCol & ROW_OTHERS).Value = _
-                            NzNum(wsIQ.Range(usdCol & ROW_OTHERS).Value) + amt
-                    Case Else
-                        wsIQ.Range(otherCol & ROW_OTHERS).Value = _
-                            NzNum(wsIQ.Range(otherCol & ROW_OTHERS).Value) + amt
-                End Select
-            End If
-
-        End If
-    Next i
-
-End Sub
-
-'--------------------------------------------------------------------------------
-' Given a Deals Age value, returns the 3 Inside Qatar columns (LC, USD, OtherFC)
-' for the matching maturity bucket, per the mapping table given in the spec.
-'--------------------------------------------------------------------------------
-Sub GetIQBucketColumns(age As Variant, ByRef lcCol As String, ByRef usdCol As String, ByRef otherCol As String)
-
-    If IsEmpty(age) Or Trim(CStr(age)) = "" Then
-        lcCol = "AH": usdCol = "AI": otherCol = "AJ" ' No contractual maturity
-    ElseIf NzNum(age) = 1 Then
-        lcCol = "D": usdCol = "E": otherCol = "F"     ' Overnight
-    ElseIf NzNum(age) >= 1 And NzNum(age) <= 7 Then
-        lcCol = "G": usdCol = "H": otherCol = "I"     ' >1 to 7 days
-    ElseIf NzNum(age) > 7 And NzNum(age) <= 15 Then
-        lcCol = "J": usdCol = "K": otherCol = "L"     ' >7 to 15 days
-    ElseIf NzNum(age) > 15 And NzNum(age) <= 30 Then
-        lcCol = "M": usdCol = "N": otherCol = "O"     ' >15 to 30 days
-    ElseIf NzNum(age) > 30 And NzNum(age) <= 90 Then
-        lcCol = "P": usdCol = "Q": otherCol = "R"     ' >1 to 3 months
-    ElseIf NzNum(age) > 90 And NzNum(age) <= 180 Then
-        lcCol = "S": usdCol = "T": otherCol = "U"     ' >3 to 6 months
-    ElseIf NzNum(age) > 180 And NzNum(age) <= 360 Then
-        lcCol = "V": usdCol = "W": otherCol = "X"     ' >6 to 12 months
-    ElseIf NzNum(age) > 360 And NzNum(age) <= 1080 Then
-        lcCol = "Y": usdCol = "Z": otherCol = "AA"    ' >1 to 3 years
-    ElseIf NzNum(age) > 1080 And NzNum(age) <= 5400 Then
-        lcCol = "AB": usdCol = "AC": otherCol = "AD"  ' >3 to 5 years
-    Else ' > 5400
-        lcCol = "AE": usdCol = "AF": otherCol = "AG"  ' >5 years
-    End If
-
-End Sub
-
-'--------------------------------------------------------------------------------
-' Helper: safely converts a cell value to a Double, treating blanks/text as 0.
-' Also handles values stored as TEXT (common with exported/CSV data), including
-' accounting-style negatives in parentheses, e.g. "(58925.61)" -> -58925.61,
-' and strips stray spaces, commas, or currency symbols before parsing.
-'--------------------------------------------------------------------------------
-Function NzNum(v As Variant) As Double
-
-    Dim s As String
-    Dim isNeg As Boolean
-
-    If IsNumeric(v) And Not IsEmpty(v) Then
-        NzNum = CDbl(v)
-        Exit Function
-    End If
-
-    s = Trim(CStr(v))
-
-    If s = "" Then
-        NzNum = 0
-        Exit Function
-    End If
-
-    ' Accounting-style negative: (1,234.56) -> -1234.56
-    If Left(s, 1) = "(" And Right(s, 1) = ")" Then
-        isNeg = True
-        s = Mid(s, 2, Len(s) - 2)
-    End If
-
-    ' Strip thousands separators, currency symbols, stray spaces
-    s = Replace(s, ",", "")
-    s = Replace(s, " ", "")
-    s = Replace(s, "QAR", "")
-    s = Replace(s, "USD", "")
-
-    If IsNumeric(s) Then
-        NzNum = CDbl(s)
-        If isNeg Then NzNum = -NzNum
+    
+    Dim lastRowGL As Long
+    Dim lastRowDeals As Long
+    Dim i As Long
+    
+    lastRowGL = wsGL.Cells(wsGL.Rows.Count, "A").End(xlUp).Row
+    lastRowDeals = wsDeals.Cells(wsDeals.Rows.Count, "AH").End(xlUp).Row
+    
+    ' Dynamically find the LOC column index in GL sheet (Row 1)
+    Dim locCol As Long
+    Dim locRange As Range
+    Set locRange = wsGL.Rows(1).Find(What:="LOC", LookIn:=xlValues, LookAt:=xlWhole, MatchCase:=False)
+    If Not locRange Is Nothing Then
+        locCol = locRange.Column
     Else
-        NzNum = 0
+        ' Fallback placeholder column if header "LOC" is not found
+        locCol = 11 ' Adjust this column index if you know the exact column letter (e.g., 11 for K)
     End If
+    
+    ' Variables to store sums for Case 1 and Case 2
+    Dim case1_LC As Double, case1_USD As Double, case1_Other As Double
+    Dim case2_LC As Double, case2_USD As Double, case2_Other As Double
+    
+    ' Variables for Case 3
+    Dim age As Variant
+    Dim ccy As String
+    Dim valZ As Double
+    Dim destCol As String
+    
+    ' Clear prior entries in target rows to prevent doubling up on multiple runs (Optional but recommended)
+    ' wsInside.Range("D6:AJ6").ClearContents
+    ' wsInside.Range("D8:AJ8").ClearContents
+    ' wsInside.Range("D9:AJ9").ClearContents
 
-End Function
+    ' --- PROCESS CASE 1 & CASE 2 (Looping through GL Sheet) ---
+    For i = 2 To lastRowGL
+        Dim locVal As String
+        locVal = Trim(CStr(wsGL.Cells(i, locCol).Value))
+        
+        ' Check condition: LOC should be blank or "QA"
+        If locVal = "" Or UCase(locVal) = "QA" Then
+            ccy = Trim(CStr(wsGL.Cells(i, "I").Value)) ' Column I is ccy
+            valZ = Val(wsGL.Cells(i, "Z").Value)       ' Column Z is the amount
+            
+            ' Case 1: Cash and Cash Equivalents (Row 6)
+            If wsGL.Cells(i, "A").Value = 1010000 Then
+                If ccy = "QAR" Then
+                    case1_LC = case1_LC + valZ
+                ElsexlF = "USD"
+                If ccy = "USD" Then
+                    case1_USD = case1_USD + valZ
+                Else
+                    case1_Other = case1_Other + valZ
+                End If
+            End If
+            
+            ' Case 2: Required Reserve (Row 8)
+            If wsGL.Cells(i, "AE").Value = 2 And wsGL.Cells(i, "D").Value = 20453 And wsGL.Cells(i, "E").Value = 31 Then
+                If ccy = "QAR" Then
+                    case2_LC = case2_LC + valZ
+                ElseIf ccy = "USD" Then
+                    case2_USD = case2_USD + valZ
+                Else
+                    case2_Other = case2_Other + valZ
+                End If
+            End If
+        End If
+    Next i
+    
+    ' Populate Case 1 to Inside Qatar Row 6 (Columns AH, AI, AJ)
+    wsInside.Cells(6, "AH").Value = case1_LC
+    wsInside.Cells(6, "AI").Value = case1_USD
+    wsInside.Cells(6, "AJ").Value = case1_Other
+    
+    ' Populate Case 2 to Inside Qatar Row 8 (Columns AE, AF, AG)
+    wsInside.Cells(8, "AE").Value = case2_LC
+    wsInside.Cells(8, "AF").Value = case2_USD
+    wsInside.Cells(8, "AG").Value = case2_Other
+    
+    ' --- PROCESS CASE 3: Others (Row 9) ---
+    ' Assuming a row-by-row synchronization or alignment between GL and Deals filters
+    Dim maxRows As Long
+    maxRows = IIf(lastRowGL > lastRowDeals, lastRowGL, lastRowDeals)
+    
+    For i = 2 To maxRows
+        Dim locVal3 As String
+        locVal3 = Trim(CStr(wsGL.Cells(i, locCol).Value))
+        
+        ' Filter check for Case 3
+        If (locVal3 = "" Or UCase(locVal3) = "QA") And _
+           wsGL.Cells(i, "AE").Value = 2 And _
+           wsGL.Cells(i, "D").Value = 20453 And _
+           wsGL.Cells(i, "E").Value <> 31 Then
+           
+            age = wsDeals.Cells(i, "AH").Value ' Check Age from Deals
+            ccy = Trim(CStr(wsGL.Cells(i, "I").Value))
+            valZ = Val(wsGL.Cells(i, "Z").Value)
+            
+            If IsNumeric(age) And Not IsEmpty(age) Then
+                ' Determine destination columns based on Age boundaries
+                Select Case age
+                    Case 1
+                        If ccy = "QAR" Then destCol = "D" Else If ccy = "USD" Then destCol = "E" Else destCol = "F"
+                    Case Is <= 7
+                        If ccy = "QAR" Then destCol = "G" Else If ccy = "USD" Then destCol = "H" Else destCol = "I"
+                    Case Is <= 15
+                        If ccy = "QAR" Then destCol = "J" Else If ccy = "USD" Then destCol = "K" Else destCol = "L"
+                    Case Is <= 30
+                        If ccy = "QAR" Then destCol = "M" Else If ccy = "USD" Then destCol = "N" Else destCol = "O"
+                    Case Is <= 90
+                        If ccy = "QAR" Then destCol = "P" Else If ccy = "USD" Then destCol = "Q" Else destCol = "R"
+                    Case Is <= 180
+                        If ccy = "QAR" Then destCol = "S" Else If ccy = "USD" Then destCol = "T" Else destCol = "U"
+                    Case Is <= 360
+                        If ccy = "QAR" Then destCol = "V" Else If ccy = "USD" Then destCol = "W" Else destCol = "X"
+                    Case Is <= 1080
+                        If ccy = "QAR" Then destCol = "Y" Else If ccy = "USD" Then destCol = "Z" Else destCol = "AA"
+                    Case Is <= 5400
+                        If ccy = "QAR" Then destCol = "AB" Else If ccy = "USD" Then destCol = "AC" Else destCol = "AD"
+                    Case Is > 5400
+                        If ccy = "QAR" Then destCol = "AE" Else If ccy = "USD" Then destCol = "AF" Else destCol = "AG"
+                    Case Else
+                        If ccy = "QAR" Then destCol = "AH" Else If ccy = "USD" Then destCol = "AI" Else destCol = "AJ"
+                End Select
+            Else
+                ' No contractual maturity fallback
+                If ccy = "QAR" Then destCol = "AH" Else If ccy = "USD" Then destCol = "AI" Else destCol = "AJ"
+            End If
+            
+            ' Add to existing value in row 9 of the identified column
+            wsInside.Cells(9, destCol).Value = wsInside.Cells(9, destCol).Value + valZ
+        End If
+    Next i
+
+    MsgBox "Data processing completed successfully!", vbInformation, "Success"
+End Sub
