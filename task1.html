@@ -6,8 +6,7 @@
 ' ASSUMPTIONS / COLUMNS THAT YOU SHOULD VERIFY (set once at top, easy to fix):
 '   - GL sheet:      A = GL code, D/E = filter fields, AE = filter field,
 '                     I = currency code (QAR/USD/Other), Z = amount,
-'                     LOC_COL = column letter for "LOC" (location) field
-'                     -> guessed as "L" below. CHANGE IF WRONG.
+'                     H = LOC (location) field, confirmed = "QA" for QA rows
 '   - Deals sheet:   AH = Age (days, used for Case 3 bucketing only),
 '                     D/E/AE = filter fields (same meaning as GL: AE=2,
 '                     D=20453, E=31 means "Others")
@@ -33,7 +32,7 @@ Const GL_COL_E As String = "E"         ' Case 2 filter field
 Const GL_COL_AE As String = "AE"       ' Case 2 filter field
 Const GL_COL_CCY As String = "I"       ' currency code column in GL
 Const GL_COL_AMT As String = "Z"       ' amount column in GL
-Const GL_COL_LOC As String = "L"       ' <-- VERIFY: "LOC" column letter in GL
+Const GL_COL_LOC As String = "H"       ' LOC column in GL (confirmed)
 
 Const DEALS_COL_AGE As String = "AH"   ' Age (days) column in Deals
 Const DEALS_COL_D As String = "D"      ' filter field (20453)
@@ -193,17 +192,8 @@ End Sub
 '   Amount = GL's Column Z (NOT a Deals amount column).
 '   Bucket = determined by Deals' Column AH (Age in days) on the SAME row
 '            index as the matching GL row (GL and Deals are assumed to be
-'            row-aligned extracts of the same underlying population -- i.e.
-'            GL row i and Deals row i correspond to the same record).
+'            row-aligned extracts of the same underlying population).
 '   Currency split = GL's Column I (QAR -> LC, USD -> USD, else -> Other FC).
-'
-'   *** IMPORTANT ASSUMPTION TO VERIFY ***
-'   This assumes GL row i and Deals row i are the SAME underlying record
-'   (i.e. both sheets list rows in the same order / are row-aligned), since
-'   no shared ID/key column was identified. If GL and Deals are NOT
-'   row-aligned, this will bucket amounts incorrectly. If you have a key
-'   column common to both sheets (e.g. a deal/transaction ID), tell me and
-'   I'll switch this to a proper lookup instead of relying on row position.
 '================================================================================
 Sub Case3_FromDeals(wsGL As Worksheet, wsDeals As Worksheet, wsIQ As Worksheet)
 
@@ -289,12 +279,45 @@ Sub GetIQBucketColumns(age As Variant, ByRef lcCol As String, ByRef usdCol As St
 End Sub
 
 '--------------------------------------------------------------------------------
-' Helper: safely converts a cell value to a Double, treating blanks/text as 0
+' Helper: safely converts a cell value to a Double, treating blanks/text as 0.
+' Also handles values stored as TEXT (common with exported/CSV data), including
+' accounting-style negatives in parentheses, e.g. "(58925.61)" -> -58925.61,
+' and strips stray spaces, commas, or currency symbols before parsing.
 '--------------------------------------------------------------------------------
 Function NzNum(v As Variant) As Double
-    If IsNumeric(v) Then
+
+    Dim s As String
+    Dim isNeg As Boolean
+
+    If IsNumeric(v) And Not IsEmpty(v) Then
         NzNum = CDbl(v)
+        Exit Function
+    End If
+
+    s = Trim(CStr(v))
+
+    If s = "" Then
+        NzNum = 0
+        Exit Function
+    End If
+
+    ' Accounting-style negative: (1,234.56) -> -1234.56
+    If Left(s, 1) = "(" And Right(s, 1) = ")" Then
+        isNeg = True
+        s = Mid(s, 2, Len(s) - 2)
+    End If
+
+    ' Strip thousands separators, currency symbols, stray spaces
+    s = Replace(s, ",", "")
+    s = Replace(s, " ", "")
+    s = Replace(s, "QAR", "")
+    s = Replace(s, "USD", "")
+
+    If IsNumeric(s) Then
+        NzNum = CDbl(s)
+        If isNeg Then NzNum = -NzNum
     Else
         NzNum = 0
     End If
+
 End Function
