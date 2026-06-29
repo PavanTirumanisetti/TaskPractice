@@ -1,137 +1,78 @@
-Sub Button2_Click()
-    Dim wsInside As Worksheet
-    Dim wsGL As Worksheet
-    Dim wsDeals As Worksheet
-    
-    Set wsInside = ThisWorkbook.Sheets("Inside Qatar")
-    Set wsGL = ThisWorkbook.Sheets("GL")
-    Set wsDeals = ThisWorkbook.Sheets("Deals")
-    
-    Dim lastRowGL As Long
-    Dim lastRowDeals As Long
-    Dim i As Long
-    
-    lastRowGL = wsGL.Cells(wsGL.Rows.Count, "A").End(xlUp).Row
-    lastRowDeals = wsDeals.Cells(wsDeals.Rows.Count, "AH").End(xlUp).Row
-    
-    ' Dynamically find the LOC column index in GL sheet (Row 1)
-    Dim locCol As Long
-    Dim locRange As Range
-    Set locRange = wsGL.Rows(1).Find(What:="LOC", LookIn:=xlValues, LookAt:=xlWhole, MatchCase:=False)
-    If Not locRange Is Nothing Then
-        locCol = locRange.Column
-    Else
-        ' Fallback placeholder column if header "LOC" is not found
-        locCol = 11 ' Column K
-    End If
-    
-    ' Variables to store sums for Case 1 and Case 2
-    Dim case1_LC As Double, case1_USD As Double, case1_Other As Double
-    Dim case2_LC As Double, case2_USD As Double, case2_Other As Double
-    
-    ' Variables for Case 3
-    Dim age As Variant
-    Dim ccy As String
-    Dim valZ As Double
-    Dim destCol As String
-    
-    ' --- PROCESS CASE 1 & CASE 2 (Looping through GL Sheet) ---
-    For i = 2 To lastRowGL
-        Dim locVal As String
-        locVal = Trim(CStr(wsGL.Cells(i, locCol).Value))
-        
-        ' Check condition: LOC should be blank or "QA"
-        If locVal = "" Or UCase(locVal) = "QA" Then
-            ccy = Trim(CStr(wsGL.Cells(i, "I").Value)) ' Column I is ccy
-            valZ = Val(wsGL.Cells(i, "Z").Value)       ' Column Z is the amount
-            
-            ' Case 1: Cash and Cash Equivalents (Row 6)
-            If wsGL.Cells(i, "A").Value = 1010000 Then
-                If ccy = "QAR" Then
-                    case1_LC = case1_LC + valZ
-                ElseIf ccy = "USD" Then
-                    case1_USD = case1_USD + valZ
-                Else
-                    case1_Other = case1_Other + valZ
-                End If
-            End If
-            
-            ' Case 2: Required Reserve (Row 8)
-            If wsGL.Cells(i, "AE").Value = 2 And wsGL.Cells(i, "D").Value = 20453 And wsGL.Cells(i, "E").Value = 31 Then
-                If ccy = "QAR" Then
-                    case2_LC = case2_LC + valZ
-                ElseIf ccy = "USD" Then
-                    case2_USD = case2_USD + valZ
-                Else
-                    case2_Other = case2_Other + valZ
-                End If
-            End If
-        End If
-    Next i
-    
-    ' Populate Case 1 to Inside Qatar Row 6 (Columns AH, AI, AJ)
-    wsInside.Cells(6, "AH").Value = case1_LC
-    wsInside.Cells(6, "AI").Value = case1_USD
-    wsInside.Cells(6, "AJ").Value = case1_Other
-    
-    ' Populate Case 2 to Inside Qatar Row 8 (Columns AE, AF, AG)
-    wsInside.Cells(8, "AE").Value = case2_LC
-    wsInside.Cells(8, "AF").Value = case2_USD
-    wsInside.Cells(8, "AG").Value = case2_Other
-    
-    ' --- PROCESS CASE 3: Others (Row 9) ---
-    Dim maxRows As Long
-    maxRows = IIf(lastRowGL > lastRowDeals, lastRowGL, lastRowDeals)
-    
-    For i = 2 To maxRows
-        Dim locVal3 As String
-        locVal3 = Trim(CStr(wsGL.Cells(i, locCol).Value))
-        
-        ' Filter check for Case 3
-        If (locVal3 = "" Or UCase(locVal3) = "QA") And _
-           wsGL.Cells(i, "AE").Value = 2 And _
-           wsGL.Cells(i, "D").Value = 20453 And _
-           wsGL.Cells(i, "E").Value <> 31 Then
-           
-            age = wsDeals.Cells(i, "AH").Value ' Check Age from Deals
-            ccy = Trim(CStr(wsGL.Cells(i, "I").Value))
-            valZ = Val(wsGL.Cells(i, "Z").Value)
-            
-            If IsNumeric(age) And Not IsEmpty(age) Then
-                ' Determine destination columns based on Age boundaries
-                Select Case age
-                    Case 1
-                        If ccy = "QAR" Then destCol = "D" Else If ccy = "USD" Then destCol = "E" Else destCol = "F"
-                    Case Is <= 7
-                        If ccy = "QAR" Then destCol = "G" Else If ccy = "USD" Then destCol = "H" Else destCol = "I"
-                    Case Is <= 15
-                        If ccy = "QAR" Then destCol = "J" Else If ccy = "USD" Then destCol = "K" Else destCol = "L"
-                    Case Is <= 30
-                        If ccy = "QAR" Then destCol = "M" Else If ccy = "USD" Then destCol = "N" Else destCol = "O"
-                    Case Is <= 90
-                        If ccy = "QAR" Then destCol = "P" Else If ccy = "USD" Then destCol = "Q" Else destCol = "R"
-                    Case Is <= 180
-                        If ccy = "QAR" Then destCol = "S" Else If ccy = "USD" Then destCol = "T" Else destCol = "U"
-                    Case Is <= 360
-                        If ccy = "QAR" Then destCol = "V" Else If ccy = "USD" Then destCol = "W" Else destCol = "X"
-                    Case Is <= 1080
-                        If ccy = "QAR" Then destCol = "Y" Else If ccy = "USD" Then destCol = "Z" Else destCol = "AA"
-                    Case Is <= 5400
-                        If ccy = "QAR" Then destCol = "AB" Else If ccy = "USD" Then destCol = "AC" Else destCol = "AD"
-                    Case Is > 5400
-                        If ccy = "QAR" Then destCol = "AE" Else If ccy = "USD" Then destCol = "AF" Else destCol = "AG"
-                    Case Else
-                        If ccy = "QAR" Then destCol = "AH" Else If ccy = "USD" Then destCol = "AI" Else destCol = "AJ"
-                End Select
-            Else
-                ' No contractual maturity fallback
-                If ccy = "QAR" Then destCol = "AH" Else If ccy = "USD" Then destCol = "AI" Else destCol = "AJ"
-            End If
-            
-            ' Add to existing value in row 9 of the identified column
-            wsInside.Cells(9, destCol).Value = wsInside.Cells(9, destCol).Value + valZ
-        End If
-    Next i
+Sub PopulateExposuresByGeography()
 
-    MsgBox "Data processing completed successfully!", vbInformation, "Success"
+    Dim glWs As Worksheet, expWs As Worksheet
+    Dim lastRowGL As Long, lastRowExp As Long
+    Dim i As Long, j As Long
+    Dim ccDesc As String, ccCode As Variant, country As String
+    Dim amt As Double
+    Dim destCol As String
+    Dim matchFound As Boolean
+
+    Set glWs = ThisWorkbook.Worksheets("GL")
+    Set expWs = ThisWorkbook.Worksheets("Exposures by geography")
+
+    lastRowGL = glWs.Cells(glWs.Rows.Count, "K").End(xlUp).Row
+    lastRowExp = expWs.Cells(expWs.Rows.Count, "C").End(xlUp).Row
+
+    ' Clear previous results in D, F, H, I (rows 2 to lastRowExp)
+    expWs.Range("D2:D" & lastRowExp).ClearContents
+    expWs.Range("F2:F" & lastRowExp).ClearContents
+    expWs.Range("H2:H" & lastRowExp).ClearContents
+    expWs.Range("I2:I" & lastRowExp).ClearContents
+
+    ' Loop through each country row in Exposures sheet
+    For j = 2 To lastRowExp
+
+        Dim countryExp As String
+        countryExp = Trim(expWs.Cells(j, "C").Value)
+
+        Dim sumCase1 As Double, sumCase2 As Double, sumCase3 As Double, sumCase4 As Double
+        sumCase1 = 0: sumCase2 = 0: sumCase3 = 0: sumCase4 = 0
+
+        ' Loop through GL rows once per country (could be optimized with Dictionary, see note below)
+        For i = 2 To lastRowGL
+
+            ccDesc = Trim(UCase(glWs.Cells(i, "K").Value))
+            ccCode = glWs.Cells(i, "J").Value
+            country = Trim(glWs.Cells(i, "H").Value)
+            amt = glWs.Cells(i, "W").Value
+
+            If country = countryExp And Len(country) > 0 Then
+
+                ' Case 1: CENTRAL BANK, CENTRAL ADMINISTR. + J = 100 or 361
+                If (ccDesc = "CENTRAL BANK" Or ccDesc = "CENTRAL ADMINISTR.") And _
+                   (ccCode = 100 Or ccCode = 361) Then
+                    sumCase1 = sumCase1 + amt
+                End If
+
+                ' Case 2: PUBLIC COMPANY + J = 364
+                If ccDesc = "PUBLIC COMPANY" And ccCode = 364 Then
+                    sumCase2 = sumCase2 + amt
+                End If
+
+                ' Case 3: BANK + J = 109
+                If ccDesc = "BANK" And ccCode = 109 Then
+                    sumCase3 = sumCase3 + amt
+                End If
+
+                ' Case 4: CORPORATE, PRIVATE ORGANIZATION + J = 300 or 380
+                If (ccDesc = "CORPORATE" Or ccDesc = "PRIVATE ORGANIZATION") And _
+                   (ccCode = 300 Or ccCode = 380) Then
+                    sumCase4 = sumCase4 + amt
+                End If
+
+            End If
+
+        Next i
+
+        ' Populate results (0 if blank/no match — already 0 by default)
+        expWs.Cells(j, "D").Value = sumCase1
+        expWs.Cells(j, "F").Value = sumCase2
+        expWs.Cells(j, "H").Value = sumCase3
+        expWs.Cells(j, "I").Value = sumCase4
+
+    Next j
+
+    MsgBox "Exposures by geography populated successfully.", vbInformation
+
 End Sub
