@@ -1,78 +1,100 @@
-Sub PopulateExposuresByGeography()
-
-    Dim glWs As Worksheet, expWs As Worksheet
+Sub Button4_Click()
+    Dim wsGL As Worksheet, wsExp As Worksheet
     Dim lastRowGL As Long, lastRowExp As Long
     Dim i As Long, j As Long
-    Dim ccDesc As String, ccCode As Variant, country As String
-    Dim amt As Double
-    Dim destCol As String
-    Dim matchFound As Boolean
-
-    Set glWs = ThisWorkbook.Worksheets("GL")
-    Set expWs = ThisWorkbook.Worksheets("Exposures by geography")
-
-    lastRowGL = glWs.Cells(glWs.Rows.Count, "K").End(xlUp).Row
-    lastRowExp = expWs.Cells(expWs.Rows.Count, "C").End(xlUp).Row
-
-    ' Clear previous results in D, F, H, I (rows 2 to lastRowExp)
-    expWs.Range("D2:D" & lastRowExp).ClearContents
-    expWs.Range("F2:F" & lastRowExp).ClearContents
-    expWs.Range("H2:H" & lastRowExp).ClearContents
-    expWs.Range("I2:I" & lastRowExp).ClearContents
-
-    ' Loop through each country row in Exposures sheet
-    For j = 2 To lastRowExp
-
-        Dim countryExp As String
-        countryExp = Trim(expWs.Cells(j, "C").Value)
-
-        Dim sumCase1 As Double, sumCase2 As Double, sumCase3 As Double, sumCase4 As Double
-        sumCase1 = 0: sumCase2 = 0: sumCase3 = 0: sumCase4 = 0
-
-        ' Loop through GL rows once per country (could be optimized with Dictionary, see note below)
-        For i = 2 To lastRowGL
-
-            ccDesc = Trim(UCase(glWs.Cells(i, "K").Value))
-            ccCode = glWs.Cells(i, "J").Value
-            country = Trim(glWs.Cells(i, "H").Value)
-            amt = glWs.Cells(i, "W").Value
-
-            If country = countryExp And Len(country) > 0 Then
-
-                ' Case 1: CENTRAL BANK, CENTRAL ADMINISTR. + J = 100 or 361
-                If (ccDesc = "CENTRAL BANK" Or ccDesc = "CENTRAL ADMINISTR.") And _
-                   (ccCode = 100 Or ccCode = 361) Then
-                    sumCase1 = sumCase1 + amt
-                End If
-
-                ' Case 2: PUBLIC COMPANY + J = 364
-                If ccDesc = "PUBLIC COMPANY" And ccCode = 364 Then
-                    sumCase2 = sumCase2 + amt
-                End If
-
-                ' Case 3: BANK + J = 109
-                If ccDesc = "BANK" And ccCode = 109 Then
-                    sumCase3 = sumCase3 + amt
-                End If
-
-                ' Case 4: CORPORATE, PRIVATE ORGANIZATION + J = 300 or 380
-                If (ccDesc = "CORPORATE" Or ccDesc = "PRIVATE ORGANIZATION") And _
-                   (ccCode = 300 Or ccCode = 380) Then
-                    sumCase4 = sumCase4 + amt
-                End If
-
-            End If
-
-        Next i
-
-        ' Populate results (0 if blank/no match — already 0 by default)
-        expWs.Cells(j, "D").Value = sumCase1
-        expWs.Cells(j, "F").Value = sumCase2
-        expWs.Cells(j, "H").Value = sumCase3
-        expWs.Cells(j, "I").Value = sumCase4
-
+    Dim countryGL As String, countryExp As String
+    Dim ccValue As Variant, sumW As Double
+    Dim dictD As Object, dictF As Object, dictH As Object, dictI As Object
+    
+    ' Set worksheet references
+    On Error Resume Next
+    Set wsGL = ThisWorkbook.Worksheets("GL")
+    Set wsExp = ThisWorkbook.Worksheets("Exposures by geography")
+    On Error GoTo 0
+    
+    If wsGL Is Nothing Then
+        MsgBox "GL sheet not found. Please import data first.", vbCritical
+        Exit Sub
+    End If
+    If wsExp Is Nothing Then
+        MsgBox "Exposures by geography sheet not found.", vbCritical
+        Exit Sub
+    End If
+    
+    ' Find the last row with data in GL sheet (using Column J as anchor)
+    lastRowGL = wsGL.Cells(wsGL.Rows.Count, "J").End(xlUp).Row
+    If lastRowGL < 2 Then
+        MsgBox "No data found in GL sheet to process.", vbExclamation
+        Exit Sub
+    End If
+    
+    ' Find the last row in Exposures by geography sheet (using Column C)
+    lastRowExp = wsExp.Cells(wsExp.Rows.Count, "C").End(xlUp).Row
+    If lastRowExp < 6 Then lastRowExp = 6 ' Ensures we cover up to row 6 at least
+    
+    ' Initialize Dictionaries to aggregate Sum(W) grouped by Country
+    Set dictD = CreateObject("Scripting.Dictionary")
+    Set dictF = CreateObject("Scripting.Dictionary")
+    Set dictH = CreateObject("Scripting.Dictionary")
+    Set dictI = CreateObject("Scripting.Dictionary")
+    
+    ' Loop through GL data starting from Row 2 (assuming Row 1 has headers)
+    For i = 2 To lastRowGL
+        ccValue = wsGL.Cells(i, "J").Value
+        countryGL = Trim(CStr(wsGL.Cells(i, "H").Value))
+        sumW = Val(wsGL.Cells(i, "W").Value)
+        
+        ' Handle blank/null countries safely
+        If countryGL = "" Then countryGL = "BLANK_COUNTRY"
+        
+        ' Evaluate Cases based on Column J value
+        Select Case ccValue
+            Case 100, 361 ' Case 1
+                dictD(countryGL) = dictD(countryGL) + sumW
+            Case 364 ' Case 2
+                dictF(countryGL) = dictF(countryGL) + sumW
+            Case 109 ' Case 3
+                dictH(countryGL) = dictH(countryGL) + sumW
+            Case 300, 380 ' Case 4
+                dictI(countryGL) = dictI(countryGL) + sumW
+        End Select
+    Next i
+    
+    ' Populate data into "Exposures by geography" sheet starting from Row 6
+    Application.ScreenUpdating = False
+    For j = 6 To lastRowExp
+        countryExp = Trim(CStr(wsExp.Cells(j, "C").Value))
+        If countryExp = "" Then countryExp = "BLANK_COUNTRY"
+        
+        ' Column D (Case 1)
+        If dictD.Exists(countryExp) Then
+            wsExp.Cells(j, "D").Value = dictD(countryExp)
+        Else
+            wsExp.Cells(j, "D").Value = 0
+        End If
+        
+        ' Column F (Case 2)
+        If dictF.Exists(countryExp) Then
+            wsExp.Cells(j, "F").Value = dictF(countryExp)
+        Else
+            wsExp.Cells(j, "F").Value = 0
+        End If
+        
+        ' Column H (Case 3)
+        If dictH.Exists(countryExp) Then
+            wsExp.Cells(j, "H").Value = dictH(countryExp)
+        Else
+            wsExp.Cells(j, "H").Value = 0
+        End If
+        
+        ' Column I (Case 4)
+        If dictI.Exists(countryExp) Then
+            wsExp.Cells(j, "I").Value = dictI(countryExp)
+        Else
+            wsExp.Cells(j, "I").Value = 0
+        End If
     Next j
-
-    MsgBox "Exposures by geography populated successfully.", vbInformation
-
+    Application.ScreenUpdating = True
+    
+    MsgBox "Exposures calculated and updated successfully!", vbInformation
 End Sub
