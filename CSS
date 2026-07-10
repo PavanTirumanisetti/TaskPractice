@@ -1,84 +1,41 @@
-Here is the complete text extracted from the provided HackerRank images (`IMG_6131.jpg`, `IMG_6132.jpg`, `IMG_6134.jpg`, and `IMG_6135.jpg`).
+**English Prompt:**
 
----
-
-## 1. Efficient Janitor
-
-A janitor must carry waste bags to an outside trash bin. Each bag:
-
-* Weighs between 1.01 and 3.00 pounds
-* Can be carried along with other bags as long as the total weight $\le$ 3.00 pounds
-
-You are given an array *weight[]* where *weight[i]* is the weight of the $i^{th}$ bag.
-
-Your task is to:
-
-* Determine the minimum number of trips needed to carry all bags
-* Each trip may include one or more bags, but their combined weight must not exceed 3.00
-
-Return the minimum number of trips required.
-
-### Example
-
-Suppose there are 5 bags with *weight* = [1.01, 1.99, 2.5, 1.5, 1.01]
-Output: 3
-
-**Explanation:**
-
-1. **First trip:** bags with weights 1.01 and 1.99 (total: 3.00 pounds)
-2. **Second trip:** bag with weight 2.5 (total: 2.50 pounds)
-3. **Third trip:** bags with weights 1.5 and 1.01 (total: 2.51 pounds)
-
-### Constraints
-
-* $1 \le \text{size of } weight[] \le 1000$
-* $1.01 \le weight[i] \le 3.0$
-
-### Test Case Input Format
-
-The first line contains the integer *n*, the size of *weight[]*.
-The next n lines contain a float element of *weight[]*.
-
----
-
-## Code Editor Setup
-
-**Language:** Python 3
-
-```python
-#!/bin/python3
-
-import math
-import os
-import random
-import re
-import sys
-
-#
-# Complete the 'efficientJanitor' function below.
-#
-# The function is expected to return an INTEGER.
-# The function accepts FLOAT_ARRAY weight as parameter.
-#
-
-def efficientJanitor(weight):
-    # Write your code here
-
-if __name__ == '__main__':
-    fptr = open(os.environ['OUTPUT_PATH'], 'w')
-
-    weight_count = int(input().strip())
-
-    weight = []
-
-    for _ in range(weight_count):
-        weight_item = float(input().strip())
-        weight.append(weight_item)
-
-    result = efficientJanitor(weight)
-
-    fptr.write(str(result) + '\n')
-
-    fptr.close()
-
-```
+> Design a C# application that scans all Excel files in a specified folder and searches their VBA macro code for a specific text string.
+>
+> **Requirements:**
+>
+> * The user should provide:
+>
+>   * The folder path containing the Excel files.
+>   * The search string (text to look for).
+> * The program should iterate through every Excel file in the folder (including `.xlsm`, `.xls`, and `.xlsb` if supported).
+> * For each Excel file:
+>
+>   * Open the workbook.
+>   * Access the VBA Project (Developer → Visual Basic code/modules).
+>   * Read all VBA components, including standard modules, class modules, worksheet modules, `ThisWorkbook`, and user forms.
+>   * Search the entire VBA code for the specified string (case-insensitive option preferred).
+> * If the string is found anywhere in the VBA code:
+>
+>   * Record the Excel file name.
+>   * Optionally record the VBA module name and the line number where the match was found.
+> * Continue scanning all Excel files without stopping if one file causes an error.
+> * Display the final results in a clear format, showing all matching Excel files.
+> * Also save the results to a text file (e.g., `SearchResults.txt`) containing:
+>
+>   * Excel file name
+>   * Full file path
+>   * VBA module name (optional)
+>   * Line number (optional)
+>   * Matching text (optional)
+> * If no matches are found, display a message stating that no matching VBA code was found.
+>
+> **Technical Requirements:**
+>
+> * Use C# (.NET).
+> * Use Microsoft Office Interop Excel (or another suitable library capable of reading VBA projects).
+> * Ensure all COM objects are properly released to prevent orphaned Excel processes.
+> * Include proper exception handling and logging.
+> * The code should be clean, modular, well-commented, and production-ready.
+>
+> **Note:** The solution should handle password-unprotected VBA projects. If a VBA project is password-protected, skip it gracefully and log the file name as "Protected VBA Project."
