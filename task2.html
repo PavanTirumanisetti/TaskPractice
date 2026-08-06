@@ -1,12 +1,32 @@
-<!DOCTYPE html>
-<html lang="en">
-    <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Document</title>
-        <link rel="stylesheet" href="styles.css" />
-    </head>
-    <body>
-        <h1>this is task2</h1>
-    </body>
-</html>
+Create an Excel VBA macro that processes data from the GL worksheet and populates the 1-NR-Depo worksheet based on the following requirements.
+Step 1: Filter Data in the GL Worksheet
+Apply the following filters to the data in the GL worksheet:
+1. LOC (Column H)
+Exclude rows where the LOC value is "QA".
+Exclude rows where the LOC value is blank or empty.
+Include all other LOC values.
+2. CCY (Column I)
+Exclude rows where the CCY value is "QAR".
+Include all other currency values.
+3. Table (Column AE)
+Apply a filter based on a configurable list of Table values.
+The list of allowed Table values will be provided later, so the macro should be designed to easily update this filter without modifying the core logic.
+4. Line (Column AH)
+Apply a filter based on a configurable list of Line values.
+The allowed Line values will also be provided later and should be easy to update.
+Step 2: Copy Filtered Data
+After applying all the above filters, copy only the visible (filtered) rows from the GL worksheet to the 1-NR-Depo worksheet.
+Destination Details
+Start writing data from Row 7 in the 1-NR-Depo worksheet.
+Do not copy the entire row. Copy only the following columns:
+GL Worksheet	Field	1-NR-Depo Worksheet
+Column D	Radix	Column C
+Column H	LOC	Column D
+Column I	CCY (Currency)	Column H
+Additional Requirements
+Automatically determine the last used row in the GL worksheet.
+Clear any existing data in the destination range (starting from Row 7) before copying new data.
+Copy only the rows that satisfy all filter conditions.
+Preserve the order of the filtered records.
+Write clean, well-structured, and fully commented VBA code.
+Store the configurable Table and Line filter values in arrays or collections so they can be updated easily in the future without changing the filtering logic.
