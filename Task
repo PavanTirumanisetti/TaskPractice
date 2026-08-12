@@ -1,90 +1,160 @@
-Here is the extracted text from the images, ready for you to copy and paste.
-Problem Description
-Coding Hands-on > 1: Easy : Dual Conveyor Merge
-A factory has two conveyor belts, A and B, feeding items to a single packing station.
-Belt A carries N items with values a[0], a[1], ..., a[N-1], and Belt B carries M items with values b[0], b[1], ..., b[M-1]. Items on each belt are queued: you can only take the front item from a belt (i.e., a[0] must be taken before a[1], and b[0] before b[1]).
-At each step, you take the front item from either Belt A or Belt B. The k-th item packed overall (1-indexed) receives a priority multiplier of k. So if an item with value v is packed at position k, it contributes v * k to the total score.
-Find the maximum total score achievable by optimally choosing which belt to pick from at each step.
-Note:
- * It is given that arrays are 1 indexed.
-Input Format
-The first line contains an integer, N, denoting the number of items on Belt A.
-The next line contains an integer, M, denoting the number of items on Belt B.
-Each line i of the N subsequent lines (where 1 <= i <= N) contains an integer describing A[i].
-Each line i of the M subsequent lines (where 1 <= i <= M) contains an integer describing B[i].
-Constraints
-1 <= N <= 10^5
-1 <= M <= 10^5
-1 <= A[i] <= 10000
-1 <= B[i] <= 10000
-Sample Test Cases
-Case 1
-Input:
-2
-2
-10
-1
-5
-5
-
-Output:
-49
-
-Explanation:
-Taking the items in the order of 5 from Belt B, 5 from Belt B, 10 from Belt A, and finally 1 from Belt A applies the increasing position multipliers to each value respectively to achieve a maximum total score of 49.
-Case 2
-Input:
-2
-2
-100
-1
-10
-10
-
-Output:
-334
-
-Explanation:
-Selecting the sequence of 10 from Belt B, 10 from Belt B, 100 from Belt A, and 1 from Belt A ensures that the large value of 100 receives a strong position multiplier of 3 before adding the final piece to reach a sum of 334.
-Case 3
-Input:
-3
-3
-1
-2
-3
-1
-2
-4
-
-Output:
-56
-
-Explanation:
-By interleaving the items and taking 1 from Belt A, 1 from Belt B, 2 from Belt A, 2 from Belt B, 3 from Belt A, and finally 4 from Belt B, the progressively larger values are pushed to the later positions to receive the highest position multipliers of 1 through 6 respectively, yielding individual scores of 1, 2, 6, 8, 15, and 24 that sum up to a maximum total score of 56.
-Python 3 Code Template
-import sys
-
-def MaxScore(N, M, A, B):
-    # Write your code here
-    pass
-
-def main():
-    N = int(sys.stdin.readline().strip())
-    
-    M = int(sys.stdin.readline().strip())
-    
-    A = []
-    for _ in range(N):
-        A.append(int(sys.stdin.readline().strip()))
-        
-    B = []
-    for _ in range(M):
-        B.append(int(sys.stdin.readline().strip()))
-        
-    result = MaxScore(N, M, A, B)
-    
-    print(result)
-
-if __name__ == "__main__":
-    main()
+Excel VBA Macro Requirement – 1NR DEPO
+Develop an Excel VBA macro to automatically import source data, apply the required filters, match GL and Deals data, and populate the 1NR DEPO sheet.
+1. Source Data Import
+The workbook contains multiple report sheets, including:
+1NR DEPO
+1NR DEPO QAR
+2NR LEND
+2NR QAR LEND
+GL
+Deals
+For this requirement, the macro must work with the following two source sheets:
+GL
+Deals
+The macro should import/load the required GL and Deals source data before processing the 1NR DEPO sheet.
+2. GL Sheet Filters
+Apply the following filters to the GL sheet.
+Filter 1 – GL Type / Off Balance
+Column: AB
+Include only: BS
+Exclude all other values.
+This is required to remove Off Balance records.
+Filter 2 – Ordinal
+Column: E
+Exclude: G35
+Include all other Ordinal values.
+Filter 3 – Exchange LB
+Column: Y
+Condition: Greater than 0
+This means only credit/positive Exchange LB records should be considered.
+Filter 4 – Location
+Column: H
+Exclude: QAR
+Include all other locations.
+Filter 5 – Currency
+Column: I
+Exclude: QAR
+Include all remaining foreign currencies.
+After applying all the above filters, only the qualifying GL records should be used for the 1NR DEPO population.
+3. Deals Sheet Filters
+The same business logic must also be applied to the Deals sheet, but the corresponding columns are different.
+Filter 1 – Ordinal
+Column: F
+Exclude: G35
+Include all other Ordinal values.
+Filter 2 – Exchange LB
+Column: W
+Condition: Greater than 0
+Only positive/credit Exchange LB records should be considered.
+Filter 3 – Location
+Column: S
+Exclude: QAR
+Include all other locations.
+Filter 4 – GL Type
+Column: Z
+Include only: BS
+Exclude all other values.
+Filter 5 – Currency
+Column: G
+Apply the required currency filtering corresponding to the GL data.
+QAR records should not be used for the 1NR DEPO population.
+4. Populate the 1NR DEPO Sheet
+After applying the filters to both GL and Deals, populate the 1NR DEPO sheet.
+Data population should start from:
+1NR DEPO Row 7
+The macro should populate the records sequentially from Row 7 onward.
+5. Client
+Source
+GL Sheet
+Source Column: G
+Source Field: Account Description
+Destination
+1NR DEPO
+Destination Column: C
+Start from Row: 7
+The Account Description from the filtered GL records should be populated as the Client in Column C.
+6. Country
+The Country should be derived from the Location information.
+Source
+GL Sheet
+Location: Column H
+The corresponding country should be populated in the Country field of 1NR DEPO.
+For example:
+Location = QAR → Country = Qatar
+The country mapping should be handled appropriately based on the Location value.
+7. Region
+Populate the Region in:
+1NR DEPO – Column E
+The Region should be determined based on the corresponding Location/Country information.
+For example:
+Location/Country = QAR → Region should correspond to Qatar's region as required by the report.
+8. Transaction ID
+Transaction ID must be obtained from the Deals sheet.
+Destination
+1NR DEPO – Column F
+Source
+Deals Sheet
+Transaction ID: Column K
+The macro must identify the correct Deals record(s) corresponding to each filtered GL record.
+9. GL-to-Deals Amount Matching
+The primary matching/key relationship between GL and Deals is the Amount.
+For example:
+A GL record may contain an amount of 100,000.
+There may be multiple Deals records related to that GL record.
+The Deals records may contain:
+one transaction totaling 100,000, or
+two or more transactions whose combined amount equals 100,000.
+The macro must:
+Read the amount from the filtered GL record.
+Search the filtered Deals data for the corresponding Deal records.
+Identify one or multiple Deals records where the sum of the relevant Deal amounts equals the GL amount.
+Once the matching Deals record(s) are identified, retrieve the corresponding Transaction ID(s) from Deals Column K.
+Populate the identified Transaction ID(s) into 1NR DEPO Column F.
+The matching logic must support situations where multiple Deals transactions together make up the GL amount.
+The macro should avoid incorrectly matching unrelated Deals records merely because their individual amounts are similar.
+10. Currency
+Populate the Currency in the corresponding Currency field of 1NR DEPO.
+The Currency should be retrieved from the relevant source record from GL/Deals based on the successful GL-to-Deals matching.
+The macro must ensure that the Currency corresponds to the matched transaction.
+11. Value Date
+Source
+Deals Sheet
+Column: L
+Field: Value Date
+Populate the corresponding Value Date in the 1NR DEPO sheet.
+12. Maturity Date
+Source
+Deals Sheet
+Column: M
+Field: Expiry Date / Maturity Date
+Populate the corresponding Maturity Date in the 1NR DEPO sheet.
+13. Maturity Remaining
+Calculate Maturity Remaining based on the Value Date and Maturity Date.
+Formula:
+Maturity Remaining = Maturity Date - Value Date
+The result should represent the number of days remaining between the Value Date and Maturity Date.
+The macro should calculate this automatically rather than requiring the user to enter the value manually.
+14. Interest Rate
+Source
+Deals Sheet
+Column: Q
+Field: Interest Rate
+Retrieve the Interest Rate from the matched Deals record and populate it into the corresponding Interest Rate field in 1NR DEPO.
+15. General Processing Logic
+The overall VBA macro should follow this sequence:
+Import/load the GL source data.
+Import/load the Deals source data.
+Apply all required filters to the GL sheet.
+Apply the corresponding filters to the Deals sheet.
+Read the remaining filtered GL records.
+For each GL record, identify the corresponding Deals record(s).
+Use Amount as the primary matching basis between GL and Deals.
+Support one-to-many matching where multiple Deals amounts must be summed to equal the GL amount.
+Retrieve the relevant Transaction ID(s), Currency, Value Date, Maturity Date and Interest Rate from Deals.
+Populate the 1NR DEPO sheet starting from Row 7.
+Calculate Maturity Remaining using:
+Maturity Date - Value Date
+Ensure that only records satisfying all specified filters are populated.
+Do not modify or populate records that do not satisfy the required filtering and matching conditions.
+Important
+The macro should be designed so that the column mappings and filter criteria are clearly defined and easy to modify in the future, because additional report sheets such as 1NR DEPO QAR, 2NR LEND, and 2NR QAR LEND will have different filtering and population requirements.
