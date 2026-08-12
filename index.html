@@ -1,98 +1,799 @@
-Here is the extracted text from the images, formatted for easy copying and pasting:
-Problem Description
-Coding Hands-on > 3: Hard : Contiguous Zero-Weight Override
-You are given a directed weighted graph with N nodes (numbered 0 to N-1) and M directed edges.
-You start at node 0 and want to reach node N-1 with the minimum possible total path weight.
-You possess a special override ability that you can use at most once during your journey: you can select a contiguous sequence of at most K edges along your path and change their weights to 0.
-Once you stop using the override, you cannot activate it again on the remainder of the path.
-Find the minimum total weight to reach node N-1. If it is impossible to reach the destination, return -1.
-Input Format
-The first line contains an integer, N, denoting the number of nodes.
-The next line contains an integer, M, denoting the number of edges.
-The next line contains an integer, K, denoting the constant K.
-Each line i of the M subsequent lines (where 0 <= i < M) contains 3 space separated integers each describing the row Edges[i].
-The row Edges[i] contains 3 space separated integers denoting an edge between node u to node v and weight w.
-Constraints
-1 <= N <= 500
-1 <= M <= 10^4
-1 <= K <= 20
-1 <= Edges[i][j] <= 10^3
-Sample Test Cases
-Case 1
-Input:
-3
-2
-1
-0 1 10
-1 2 10
+Option Explicit
 
-Output:
-10
+Sub Button3_Click()
 
-Explanation:
-Graph:
-0 -> 1 -> 2
-K = 1
-Best strategy:
-Override either edge
-Cost: 10
-Output: 10
-Case 2
-Input:
-4
-4
-2
-0 1 10
-1 2 100
-2 3 100
-0 3 50
-
-Output:
-10
-
-Explanation:
-Two paths:
-0 -> 3 (cost 50)
-0 -> 1 -> 2 -> 3
-= 10 + 100 + 100 = 210
-Use override on 2 edges in path 2:
-Make 100 and 100 -> 0
-Cost becomes: 10
-Better than 50.
-Output: 10
-Case 3
-Input:
-3
-1
-1
-0 1 5
-
-Output:
--1
-
-Explanation:
-Node 2 unreachable.
-Python 3 Code Template
-import sys
-
-def getMinimumCost(N, M, K, Edges):
-    # Write your code here
-    pass
-
-def main():
-    N = int(sys.stdin.readline().strip())
+    Dim wb As Workbook
+    Dim wsGL As Worksheet
+    Dim wsDeals As Worksheet
+    Dim wsOutput As Worksheet
     
-    M = int(sys.stdin.readline().strip())
+    Dim lastRowGL As Long
+    Dim lastRowDeals As Long
+    Dim outputRow As Long
+    Dim i As Long
     
-    K = int(sys.stdin.readline().strip())
+    Dim glAmount As Double
+    Dim currencyCode As String
+    Dim locationCode As String
+    Dim clientName As String
     
-    Edges = []
-    for _ in range(M):
-        Edges.append(list(map(lambda x: int(x), sys.stdin.readline().strip().split())))
+    Dim matchedRows As Collection
+    Dim transactionIDs As String
+    
+    Dim valueDate As Variant
+    Dim maturityDate As Variant
+    Dim interestRate As Variant
+    
+    Dim countryName As String
+    Dim regionName As String
+    
+    Dim oldCalc As XlCalculation
+    
+    On Error GoTo ErrorHandler
+    
+    Set wb = ThisWorkbook
+    
+    '----------------------------------------------------------
+    ' Store current Excel calculation mode
+    '----------------------------------------------------------
+    oldCalc = Application.Calculation
+    
+    Application.ScreenUpdating = False
+    Application.EnableEvents = False
+    Application.Calculation = xlCalculationManual
+    Application.StatusBar = "Preparing 1-NR-Depo report..."
+    
+    '----------------------------------------------------------
+    ' Get / Import GL and Deals sheets
+    '----------------------------------------------------------
+    Set wsGL = GetOrImportSheet(wb, "GL")
+    Set wsDeals = GetOrImportSheet(wb, "Deals")
+    
+    If wsGL Is Nothing Then
+        MsgBox "GL sheet could not be found or imported.", vbCritical
+        GoTo CleanExit
+    End If
+    
+    If wsDeals Is Nothing Then
+        MsgBox "Deals sheet could not be found or imported.", vbCritical
+        GoTo CleanExit
+    End If
+    
+    '----------------------------------------------------------
+    ' Get output sheet
+    '----------------------------------------------------------
+    Set wsOutput = GetSheet(wb, "1-NR-Depo")
+    
+    If wsOutput Is Nothing Then
+        MsgBox "1-NR-Depo sheet was not found.", vbCritical
+        GoTo CleanExit
+    End If
+    
+    '----------------------------------------------------------
+    ' Find last rows
+    '----------------------------------------------------------
+    lastRowGL = wsGL.Cells(wsGL.Rows.Count, "A").End(xlUp).Row
+    lastRowDeals = wsDeals.Cells(wsDeals.Rows.Count, "A").End(xlUp).Row
+    
+    '----------------------------------------------------------
+    ' Clear previous output data
+    '
+    ' Keep the existing formatting.
+    ' Data starts from Row 7.
+    '----------------------------------------------------------
+    wsOutput.Range("B7:N" & wsOutput.Rows.Count).ClearContents
+    
+    outputRow = 7
+    
+    Application.StatusBar = "Processing GL records..."
+    
+    '==========================================================
+    ' PROCESS GL DATA
+    '==========================================================
+    
+    For i = 2 To lastRowGL
         
-    result = getMinimumCost(N, M, K, Edges)
+        '------------------------------------------------------
+        ' GL FILTER 1
+        ' AB = BS only
+        ' Exclude Off Balance
+        '------------------------------------------------------
+        If UCase(Trim(CStr(wsGL.Cells(i, "AB").Value))) <> "BS" Then
+            GoTo NextGL
+        End If
+        
+        '------------------------------------------------------
+        ' GL FILTER 2
+        ' E = Ordinal
+        ' Exclude G35
+        '------------------------------------------------------
+        If UCase(Trim(CStr(wsGL.Cells(i, "E").Value))) = "G35" Then
+            GoTo NextGL
+        End If
+        
+        '------------------------------------------------------
+        ' GL FILTER 3
+        ' Y = Exchange LB
+        ' Greater than 0
+        '------------------------------------------------------
+        If Not IsNumeric(wsGL.Cells(i, "Y").Value) Then
+            GoTo NextGL
+        End If
+        
+        glAmount = CDbl(wsGL.Cells(i, "Y").Value)
+        
+        If glAmount <= 0 Then
+            GoTo NextGL
+        End If
+        
+        '------------------------------------------------------
+        ' GL FILTER 4
+        ' H = Location
+        ' Exclude QAR
+        '------------------------------------------------------
+        locationCode = UCase(Trim(CStr(wsGL.Cells(i, "H").Value)))
+        
+        If locationCode = "QAR" Then
+            GoTo NextGL
+        End If
+        
+        '------------------------------------------------------
+        ' GL FILTER 5
+        ' I = CCY
+        ' Exclude QAR
+        '------------------------------------------------------
+        currencyCode = UCase(Trim(CStr(wsGL.Cells(i, "I").Value)))
+        
+        If currencyCode = "QAR" Then
+            GoTo NextGL
+        End If
+        
+        '------------------------------------------------------
+        ' Get Client
+        ' GL Column G = Account Description
+        '------------------------------------------------------
+        clientName = Trim(CStr(wsGL.Cells(i, "G").Value))
+        
+        '------------------------------------------------------
+        ' Find matching Deals
+        '
+        ' Match based on:
+        ' 1. Amount / Exchange LB
+        ' 2. Currency
+        ' 3. Location
+        '
+        ' Supports one or multiple Deals records.
+        '------------------------------------------------------
+        Set matchedRows = FindMatchingDeals( _
+                                wsDeals, _
+                                lastRowDeals, _
+                                glAmount, _
+                                currencyCode, _
+                                locationCode)
+        
+        '------------------------------------------------------
+        ' Only populate if matching Deals were found
+        '------------------------------------------------------
+        If Not matchedRows Is Nothing Then
+            
+            If matchedRows.Count > 0 Then
+                
+                '--------------------------------------------------
+                ' Build Transaction ID
+                ' Deals Column K
+                '--------------------------------------------------
+                transactionIDs = BuildTransactionIDs(wsDeals, matchedRows)
+                
+                '--------------------------------------------------
+                ' Get Deal information
+                '
+                ' If multiple Deals are matched, the first matched
+                ' Deal is used for Value Date, Maturity Date and
+                ' Interest Rate.
+                '--------------------------------------------------
+                valueDate = wsDeals.Cells(matchedRows(1), "L").Value
+                maturityDate = wsDeals.Cells(matchedRows(1), "M").Value
+                interestRate = wsDeals.Cells(matchedRows(1), "Q").Value
+                
+                '--------------------------------------------------
+                ' Country / Region
+                '--------------------------------------------------
+                GetCountryRegion locationCode, countryName, regionName
+                
+                '==================================================
+                ' POPULATE 1-NR-DEPO
+                '==================================================
+                
+                ' Serial Number
+                wsOutput.Cells(outputRow, "B").Value = outputRow - 6
+                
+                ' Client
+                ' GL G -> 1-NR-Depo C
+                wsOutput.Cells(outputRow, "C").Value = clientName
+                
+                ' Country
+                wsOutput.Cells(outputRow, "D").Value = countryName
+                
+                ' Region
+                wsOutput.Cells(outputRow, "E").Value = regionName
+                
+                ' Transaction ID
+                ' Deals K -> 1-NR-Depo F
+                wsOutput.Cells(outputRow, "F").Value = transactionIDs
+                
+                ' Type of Facility
+                ' Mapping not provided yet
+                wsOutput.Cells(outputRow, "G").Value = ""
+                
+                ' Currency
+                wsOutput.Cells(outputRow, "H").Value = currencyCode
+                
+                ' Value Date
+                ' Deals L -> 1-NR-Depo I
+                wsOutput.Cells(outputRow, "I").Value = valueDate
+                
+                ' Maturity Date
+                ' Deals M -> 1-NR-Depo J
+                wsOutput.Cells(outputRow, "J").Value = maturityDate
+                
+                ' Maturity Remaining
+                ' Maturity Date - Value Date
+                If IsDate(valueDate) And IsDate(maturityDate) Then
+                    
+                    wsOutput.Cells(outputRow, "K").Value = _
+                        DateDiff("d", CDate(valueDate), CDate(maturityDate))
+                
+                Else
+                    
+                    wsOutput.Cells(outputRow, "K").Value = ""
+                    
+                End If
+                
+                ' Interest Rate
+                ' Deals Q -> 1-NR-Depo L
+                wsOutput.Cells(outputRow, "L").Value = interestRate
+                
+                '--------------------------------------------------
+                ' M and N are intentionally not populated yet.
+                ' These can be added once Principal / USD Equiv
+                ' requirements are provided.
+                '--------------------------------------------------
+                
+                outputRow = outputRow + 1
+                
+            End If
+            
+        End If
+        
+NextGL:
+        
+        Application.StatusBar = _
+            "Processing GL record " & i & " of " & lastRowGL
+        
+    Next i
     
-    print(result)
+    '----------------------------------------------------------
+    ' Format dates
+    '----------------------------------------------------------
+    If outputRow > 7 Then
+        
+        wsOutput.Range("I7:J" & outputRow - 1).NumberFormat = "dd/mm/yyyy"
+        
+    End If
+    
+    '----------------------------------------------------------
+    ' Restore calculation
+    '----------------------------------------------------------
+    Application.StatusBar = False
+    
+    MsgBox _
+        "1-NR-Depo population completed successfully." & vbCrLf & vbCrLf & _
+        "Records populated: " & (outputRow - 7), _
+        vbInformation, _
+        "1-NR-Depo Macro"
+    
+CleanExit:
+    
+    Application.ScreenUpdating = True
+    Application.EnableEvents = True
+    Application.Calculation = oldCalc
+    Application.StatusBar = False
+    
+    Exit Sub
 
-if __name__ == "__main__":
-    main()
+ErrorHandler:
+    
+    MsgBox _
+        "An error occurred while processing the 1-NR-Depo report." & vbCrLf & vbCrLf & _
+        "Error Number: " & Err.Number & vbCrLf & _
+        "Error Description: " & Err.Description, _
+        vbCritical, _
+        "Macro Error"
+    
+    Resume CleanExit
+
+End Sub
+
+
+'==============================================================
+' FUNCTION: Get Sheet
+'==============================================================
+Private Function GetSheet( _
+    ByVal wb As Workbook, _
+    ByVal sheetName As String) As Worksheet
+    
+    On Error Resume Next
+    
+    Set GetSheet = wb.Worksheets(sheetName)
+    
+    On Error GoTo 0
+    
+End Function
+
+
+'==============================================================
+' FUNCTION: Get or Import Sheet
+'
+' If the sheet already exists in the current workbook,
+' use it.
+'
+' Otherwise ask the user to select the source workbook and
+' import the required sheet.
+'==============================================================
+Private Function GetOrImportSheet( _
+    ByVal targetWb As Workbook, _
+    ByVal sheetName As String) As Worksheet
+    
+    Dim ws As Worksheet
+    Dim sourceWb As Workbook
+    Dim filePath As Variant
+    
+    '----------------------------------------------------------
+    ' Check whether sheet already exists
+    '----------------------------------------------------------
+    Set ws = GetSheet(targetWb, sheetName)
+    
+    If Not ws Is Nothing Then
+        
+        Set GetOrImportSheet = ws
+        Exit Function
+        
+    End If
+    
+    '----------------------------------------------------------
+    ' Ask user to select source workbook
+    '----------------------------------------------------------
+    filePath = Application.GetOpenFilename( _
+                    FileFilter:="Excel Files (*.xls*),*.xls*", _
+                    Title:="Select workbook containing " & sheetName & " sheet")
+    
+    If filePath = False Then
+        
+        Set GetOrImportSheet = Nothing
+        Exit Function
+        
+    End If
+    
+    '----------------------------------------------------------
+    ' Open source workbook
+    '----------------------------------------------------------
+    Set sourceWb = Workbooks.Open(CStr(filePath), ReadOnly:=True)
+    
+    '----------------------------------------------------------
+    ' Find requested sheet
+    '----------------------------------------------------------
+    Set ws = GetSheet(sourceWb, sheetName)
+    
+    If ws Is Nothing Then
+        
+        sourceWb.Close SaveChanges:=False
+        
+        Set GetOrImportSheet = Nothing
+        Exit Function
+        
+    End If
+    
+    '----------------------------------------------------------
+    ' Copy source sheet to current workbook
+    '----------------------------------------------------------
+    ws.Copy After:=targetWb.Sheets(targetWb.Sheets.Count)
+    
+    Set GetOrImportSheet = targetWb.Sheets(targetWb.Sheets.Count)
+    
+    '----------------------------------------------------------
+    ' Close source workbook
+    '----------------------------------------------------------
+    sourceWb.Close SaveChanges:=False
+    
+End Function
+
+
+'==============================================================
+' FUNCTION: Find Matching Deals
+'
+' Finds one or multiple Deals records where:
+'
+' Sum of Deals Exchange LB = GL Exchange LB
+'
+' Additional matching:
+'   Currency = Deals Column G
+'   Location = Deals Column S
+'
+' Deals Exchange LB = Column W
+'==============================================================
+Private Function FindMatchingDeals( _
+    ByVal wsDeals As Worksheet, _
+    ByVal lastRowDeals As Long, _
+    ByVal targetAmount As Double, _
+    ByVal currencyCode As String, _
+    ByVal locationCode As String) As Collection
+    
+    Dim result As New Collection
+    Dim candidates As New Collection
+    
+    Dim i As Long
+    Dim dealAmount As Double
+    
+    Dim dealCurrency As String
+    Dim dealLocation As String
+    
+    Dim tolerance As Double
+    
+    tolerance = 0.01
+    
+    '----------------------------------------------------------
+    ' First collect eligible Deals records
+    '----------------------------------------------------------
+    For i = 2 To lastRowDeals
+        
+        '------------------------------------------------------
+        ' Deals Filter 1
+        ' F = Ordinal
+        ' Exclude G35
+        '------------------------------------------------------
+        If UCase(Trim(CStr(wsDeals.Cells(i, "F").Value))) = "G35" Then
+            GoTo NextDeal
+        End If
+        
+        '------------------------------------------------------
+        ' Deals Filter 2
+        ' W = Exchange LB
+        ' Greater than 0
+        '------------------------------------------------------
+        If Not IsNumeric(wsDeals.Cells(i, "W").Value) Then
+            GoTo NextDeal
+        End If
+        
+        dealAmount = CDbl(wsDeals.Cells(i, "W").Value)
+        
+        If dealAmount <= 0 Then
+            GoTo NextDeal
+        End If
+        
+        '------------------------------------------------------
+        ' Deals Filter 3
+        ' S = Location
+        ' Exclude QAR
+        '------------------------------------------------------
+        dealLocation = UCase(Trim(CStr(wsDeals.Cells(i, "S").Value)))
+        
+        If dealLocation = "QAR" Then
+            GoTo NextDeal
+        End If
+        
+        '------------------------------------------------------
+        ' Deals Filter 4
+        ' Z = GL Type
+        ' BS only
+        '------------------------------------------------------
+        If UCase(Trim(CStr(wsDeals.Cells(i, "Z").Value))) <> "BS" Then
+            GoTo NextDeal
+        End If
+        
+        '------------------------------------------------------
+        ' Deals Filter 5
+        ' G = Currency
+        ' Exclude QAR
+        '------------------------------------------------------
+        dealCurrency = UCase(Trim(CStr(wsDeals.Cells(i, "G").Value)))
+        
+        If dealCurrency = "QAR" Then
+            GoTo NextDeal
+        End If
+        
+        '------------------------------------------------------
+        ' Match Currency
+        '------------------------------------------------------
+        If dealCurrency <> currencyCode Then
+            GoTo NextDeal
+        End If
+        
+        '------------------------------------------------------
+        ' Match Location
+        '------------------------------------------------------
+        If dealLocation <> locationCode Then
+            GoTo NextDeal
+        End If
+        
+        '------------------------------------------------------
+        ' Add candidate row
+        '------------------------------------------------------
+        candidates.Add i
+        
+NextDeal:
+        
+    Next i
+    
+    '----------------------------------------------------------
+    ' If no candidates
+    '----------------------------------------------------------
+    If candidates.Count = 0 Then
+        
+        Set FindMatchingDeals = Nothing
+        Exit Function
+        
+    End If
+    
+    '----------------------------------------------------------
+    ' STEP 1
+    ' Try exact one-to-one match first.
+    '----------------------------------------------------------
+    For i = 1 To candidates.Count
+        
+        dealAmount = CDbl(wsDeals.Cells(candidates(i), "W").Value)
+        
+        If Abs(dealAmount - targetAmount) <= tolerance Then
+            
+            result.Add candidates(i)
+            
+            Set FindMatchingDeals = result
+            Exit Function
+            
+        End If
+        
+    Next i
+    
+    '----------------------------------------------------------
+    ' STEP 2
+    ' Try combinations of Deals records.
+    '
+    ' Maximum combination size = 10.
+    '----------------------------------------------------------
+    If FindCombination( _
+            wsDeals, _
+            candidates, _
+            targetAmount, _
+            tolerance, _
+            result, _
+            1, _
+            10) Then
+        
+        Set FindMatchingDeals = result
+        Exit Function
+        
+    End If
+    
+    '----------------------------------------------------------
+    ' No match found
+    '----------------------------------------------------------
+    Set FindMatchingDeals = Nothing
+
+End Function
+
+
+'==============================================================
+' FUNCTION: FindCombination
+'
+' Recursive subset-sum matching.
+'
+' Example:
+'
+' GL = 100,000
+'
+' Deals:
+' 40,000
+' 30,000
+' 30,000
+'
+' Result:
+' 40,000 + 30,000 + 30,000 = 100,000
+'==============================================================
+Private Function FindCombination( _
+    ByVal wsDeals As Worksheet, _
+    ByVal candidates As Collection, _
+    ByVal targetAmount As Double, _
+    ByVal tolerance As Double, _
+    ByRef result As Collection, _
+    ByVal startIndex As Long, _
+    ByVal maxItems As Long) As Boolean
+    
+    Dim i As Long
+    Dim j As Long
+    
+    Dim currentRow As Long
+    Dim currentAmount As Double
+    
+    Dim tempResult As New Collection
+    Dim runningTotal As Double
+    
+    '----------------------------------------------------------
+    ' Prevent excessive recursion
+    '----------------------------------------------------------
+    If result.Count >= maxItems Then
+        Exit Function
+    End If
+    
+    '----------------------------------------------------------
+    ' Try each candidate
+    '----------------------------------------------------------
+    For i = startIndex To candidates.Count
+        
+        currentRow = candidates(i)
+        currentAmount = CDbl(wsDeals.Cells(currentRow, "W").Value)
+        
+        '------------------------------------------------------
+        ' Add current record
+        '------------------------------------------------------
+        result.Add currentRow
+        
+        '------------------------------------------------------
+        ' Calculate current total
+        '------------------------------------------------------
+        runningTotal = 0
+        
+        For j = 1 To result.Count
+            runningTotal = runningTotal + _
+                           CDbl(wsDeals.Cells(result(j), "W").Value)
+        Next j
+        
+        '------------------------------------------------------
+        ' Exact match
+        '------------------------------------------------------
+        If Abs(runningTotal - targetAmount) <= tolerance Then
+            
+            FindCombination = True
+            Exit Function
+            
+        End If
+        
+        '------------------------------------------------------
+        ' If total is below target, continue searching
+        '------------------------------------------------------
+        If runningTotal < targetAmount - tolerance Then
+            
+            If result.Count < maxItems Then
+                
+                If FindCombination( _
+                        wsDeals, _
+                        candidates, _
+                        targetAmount, _
+                        tolerance, _
+                        result, _
+                        i + 1, _
+                        maxItems) Then
+                    
+                    FindCombination = True
+                    Exit Function
+                    
+                End If
+                
+            End If
+            
+        End If
+        
+        '------------------------------------------------------
+        ' Remove current record and try next candidate
+        '------------------------------------------------------
+        result.Remove result.Count
+        
+    Next i
+    
+    FindCombination = False
+
+End Function
+
+
+'==============================================================
+' FUNCTION: Build Transaction IDs
+'
+' Deals Column K = Transaction ID
+'
+' If multiple Deals records are matched:
+'
+' ID001, ID002, ID003
+'==============================================================
+Private Function BuildTransactionIDs( _
+    ByVal wsDeals As Worksheet, _
+    ByVal matchedRows As Collection) As String
+    
+    Dim i As Long
+    Dim transactionID As String
+    Dim result As String
+    
+    result = ""
+    
+    For i = 1 To matchedRows.Count
+        
+        transactionID = Trim(CStr( _
+            wsDeals.Cells(matchedRows(i), "K").Value))
+        
+        If transactionID <> "" Then
+            
+            If result <> "" Then
+                result = result & ", "
+            End If
+            
+            result = result & transactionID
+            
+        End If
+        
+    Next i
+    
+    BuildTransactionIDs = result
+
+End Function
+
+
+'==============================================================
+' FUNCTION: Country / Region Mapping
+'
+' This can be expanded according to your Mapping sheet.
+'==============================================================
+Private Sub GetCountryRegion( _
+    ByVal locationCode As String, _
+    ByRef countryName As String, _
+    ByRef regionName As String)
+    
+    Select Case UCase(Trim(locationCode))
+        
+        Case "QA"
+            countryName = "Qatar"
+            regionName = "Qatar"
+            
+        Case "AE"
+            countryName = "United Arab Emirates"
+            regionName = "UAE"
+            
+        Case "BH"
+            countryName = "Bahrain"
+            regionName = "Bahrain"
+            
+        Case "SA"
+            countryName = "Saudi Arabia"
+            regionName = "Saudi Arabia"
+            
+        Case "KW"
+            countryName = "Kuwait"
+            regionName = "Kuwait"
+            
+        Case "OM"
+            countryName = "Oman"
+            regionName = "Oman"
+            
+        Case "GB"
+            countryName = "United Kingdom"
+            regionName = "United Kingdom"
+            
+        Case "US"
+            countryName = "United States"
+            regionName = "United States"
+            
+        Case "FR"
+            countryName = "France"
+            regionName = "France"
+            
+        Case "DE"
+            countryName = "Germany"
+            regionName = "Germany"
+            
+        Case "IN"
+            countryName = "India"
+            regionName = "India"
+            
+        Case Else
+            countryName = locationCode
+            regionName = locationCode
+            
+    End Select
+
+End Sub
