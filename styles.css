@@ -1,1522 +1,696 @@
 Option Explicit
 
-'===============================================================================
-' 1-NR-DEPO MACRO
-'
-' Source sheets:
-'   GL
-'   Deals
-'
-' Destination:
-'   1-NR-Depo
-'
-' Output starts from Row 7.
-'
-' Button:
-'   Button3_Click
-'===============================================================================
+Private Const START_ROW As Long = 7
 
 
-'===============================================================================
-' CONFIGURATION
-'===============================================================================
+'===========================================================
+' BUTTON MACRO
+'===========================================================
+Sub Button3_Click()
 
-'-----------------------------
-' Sheet Names
-'-----------------------------
-Private Const SHT_GL As String = "GL"
-Private Const SHT_DEALS As String = "Deals"
-Private Const SHT_DEPO As String = "1-NR-Depo"
-
-
-'===============================================================================
-' GL COLUMN MAPPING
-'===============================================================================
-
-' GL sheet
-'
-' E  = Ordinal
-' G  = Account Description
-' H  = Location
-' I  = CCY
-' Y  = Exchange LB
-' AB = GL Type
-'
-' Filters:
-' AB = BS
-' E <> G35
-' Y > 0
-' H <> QAR
-' I <> QAR
-
-Private Const GL_COL_ORDINAL As String = "E"
-Private Const GL_COL_CLIENT As String = "G"
-Private Const GL_COL_LOCATION As String = "H"
-Private Const GL_COL_CURRENCY As String = "I"
-Private Const GL_COL_EXCHANGE_LB As String = "Y"
-Private Const GL_COL_GL_TYPE As String = "AB"
-
-
-'===============================================================================
-' DEALS COLUMN MAPPING
-'===============================================================================
-
-' Deals sheet
-'
-' F = Ordinal
-' G = CCY
-' K = Transaction ID
-' L = Value Date
-' M = Maturity / Expiry Date
-' Q = Interest Rate
-' S = Location
-' W = Exchange LB
-' Z = GL Type
-'
-' Filters:
-' F <> G35
-' W > 0
-' S <> QAR
-' Z = BS
-' G <> QAR
-
-Private Const DEAL_COL_ORDINAL As String = "F"
-Private Const DEAL_COL_CURRENCY As String = "G"
-Private Const DEAL_COL_TXN_ID As String = "K"
-Private Const DEAL_COL_VALUE_DATE As String = "L"
-Private Const DEAL_COL_MATURITY_DATE As String = "M"
-Private Const DEAL_COL_INTEREST_RATE As String = "Q"
-Private Const DEAL_COL_LOCATION As String = "S"
-Private Const DEAL_COL_EXCHANGE_LB As String = "W"
-Private Const DEAL_COL_GL_TYPE As String = "Z"
-
-
-'===============================================================================
-' FILTER VALUES
-'===============================================================================
-
-Private Const FILTER_GL_TYPE As String = "BS"
-Private Const FILTER_ORDINAL_EXCLUDE As String = "G35"
-Private Const FILTER_LOCATION_EXCLUDE As String = "QAR"
-Private Const FILTER_CURRENCY_EXCLUDE As String = "QAR"
-
-
-'===============================================================================
-' 1-NR-DEPO OUTPUT COLUMNS
-'===============================================================================
-
-' 1-NR-Depo
-'
-' C = Client
-' D = Country
-' E = Region
-' F = Transaction ID
-' G = Type of Facility       -> not specified yet
-' H = Currency
-' I = Value Date
-' J = Maturity Date
-' K = Maturity Remaining
-' L = Interest Rate
-' M = Principal              -> not specified yet
-' N = USD Equivalent         -> not specified yet
-
-Private Const OUT_CLIENT As String = "C"
-Private Const OUT_COUNTRY As String = "D"
-Private Const OUT_REGION As String = "E"
-Private Const OUT_TRANSACTION_ID As String = "F"
-Private Const OUT_CURRENCY As String = "H"
-Private Const OUT_VALUE_DATE As String = "I"
-Private Const OUT_MATURITY_DATE As String = "J"
-Private Const OUT_MATURITY_REMAINING As String = "K"
-Private Const OUT_INTEREST_RATE As String = "L"
-
-Private Const OUTPUT_START_ROW As Long = 7
-
-
-'===============================================================================
-' AMOUNT MATCHING SETTINGS
-'===============================================================================
-
-' Small tolerance because Excel amounts can contain decimal rounding differences.
-
-Private Const AMOUNT_TOLERANCE As Double = 0.01
-
-' Maximum number of Deals that can be combined to match one GL amount.
-'
-' Example:
-' GL = 100,000
-'
-' Deals:
-' Deal 1 = 40,000
-' Deal 2 = 35,000
-' Deal 3 = 25,000
-'
-' 40,000 + 35,000 + 25,000 = 100,000
-'
-' Therefore all 3 Transaction IDs will be populated.
-
-Private Const MAX_DEALS_PER_GL As Long = 10
-
-
-'===============================================================================
-' DATA STRUCTURES
-'===============================================================================
-
-Private Type GLRecord
-
-    RowNumber As Long
-
-    Client As String
-    Location As String
-    Currency As String
-    Amount As Double
-
-End Type
-
-
-Private Type DealRecord
-
-    RowNumber As Long
-
-    Ordinal As String
-    Location As String
-    Currency As String
-    Amount As Double
-
-    TransactionID As String
-
-    ValueDate As Variant
-    MaturityDate As Variant
-    InterestRate As Variant
-
-    Used As Boolean
-
-End Type
-
-
-'===============================================================================
-' BUTTON 3
-'
-' Assign this macro to Button 3.
-'===============================================================================
-
-Public Sub Button3_Click()
-
-    RunNRDepoPopulation
+    Populate_1NR_DEPO
 
 End Sub
 
 
-'===============================================================================
-' MAIN MACRO
-'===============================================================================
-
-Public Sub RunNRDepoPopulation()
+'===========================================================
+' MAIN PROCEDURE
+'===========================================================
+Sub Populate_1NR_DEPO()
 
     Dim wsGL As Worksheet
     Dim wsDeals As Worksheet
-    Dim wsDepo As Worksheet
+    Dim wsOut As Worksheet
 
-    Dim glRecords() As GLRecord
-    Dim dealRecords() As DealRecord
+    Dim glLastRow As Long
+    Dim dealLastRow As Long
 
-    Dim glCount As Long
-    Dim dealCount As Long
+    Dim glRow As Long
+    Dim outRow As Long
+    Dim totalRow As Long
 
-    Dim outputRow As Long
-    Dim i As Long
+    Dim dealMatches As Collection
+    Dim amountToMatch As Double
 
-    Dim matchIndexes() As Long
-    Dim matchCount As Long
+    Dim sourceFormat As Range
 
-    Dim unmatchedCount As Long
-    Dim populatedCount As Long
-
-    On Error GoTo ErrorHandler
-
-    Application.ScreenUpdating = False
-    Application.EnableEvents = False
-    Application.Calculation = xlCalculationManual
+    '-------------------------------------------------------
+    ' Set worksheets
+    '-------------------------------------------------------
+    Set wsGL = ThisWorkbook.Worksheets("GL")
+    Set wsDeals = ThisWorkbook.Worksheets("Deals")
+    Set wsOut = ThisWorkbook.Worksheets("1-NR-Depo")
 
 
-    '---------------------------------------------------------------------------
-    ' Get sheets
-    '---------------------------------------------------------------------------
+    '-------------------------------------------------------
+    ' Find Total row in Column B
+    '-------------------------------------------------------
+    totalRow = FindTotalRow(wsOut)
 
-    Set wsGL = GetWorksheetIfExists(SHT_GL)
-    Set wsDeals = GetWorksheetIfExists(SHT_DEALS)
-    Set wsDepo = GetWorksheetIfExists(SHT_DEPO)
+    If totalRow = 0 Then
 
-
-    '---------------------------------------------------------------------------
-    ' Check required sheets
-    '---------------------------------------------------------------------------
-
-    If wsGL Is Nothing Then
-
-        MsgBox "GL sheet was not found." & vbCrLf & vbCrLf & _
-               "Please import/copy the GL data into a sheet named 'GL'.", _
-               vbExclamation
-
-        GoTo CleanExit
-
-    End If
-
-
-    If wsDeals Is Nothing Then
-
-        MsgBox "Deals sheet was not found." & vbCrLf & vbCrLf & _
-               "Please import/copy the Deals data into a sheet named 'Deals'.", _
-               vbExclamation
-
-        GoTo CleanExit
-
-    End If
-
-
-    If wsDepo Is Nothing Then
-
-        MsgBox "Destination sheet '1-NR-Depo' was not found.", _
+        MsgBox "Total row was not found in the 1-NR-Depo sheet.", _
                vbCritical
 
-        GoTo CleanExit
-
-    End If
-
-
-    '---------------------------------------------------------------------------
-    ' LOAD AND FILTER GL
-    '---------------------------------------------------------------------------
-
-    LoadFilteredGL wsGL, glRecords, glCount
-
-
-    '---------------------------------------------------------------------------
-    ' LOAD AND FILTER DEALS
-    '---------------------------------------------------------------------------
-
-    LoadFilteredDeals wsDeals, dealRecords, dealCount
-
-
-    '---------------------------------------------------------------------------
-    ' Check filtered data
-    '---------------------------------------------------------------------------
-
-    If glCount = 0 Then
-
-        MsgBox "No GL records passed the required filters.", _
-               vbExclamation
-
-        GoTo CleanExit
-
-    End If
-
-
-    If dealCount = 0 Then
-
-        MsgBox "No Deals records passed the required filters.", _
-               vbExclamation
-
-        GoTo CleanExit
-
-    End If
-
-
-    '---------------------------------------------------------------------------
-    ' Clear previous output
-    '---------------------------------------------------------------------------
-
-    ClearDepoOutput wsDepo
-
-
-    '---------------------------------------------------------------------------
-    ' Match GL amount against Deals amount
-    '---------------------------------------------------------------------------
-
-    outputRow = OUTPUT_START_ROW
-
-    unmatchedCount = 0
-    populatedCount = 0
-
-
-    For i = 1 To glCount
-
-        matchCount = 0
-
-        Erase matchIndexes
-
-
-        If FindDealsMatch( _
-                glRecords(i), _
-                dealRecords, _
-                dealCount, _
-                matchIndexes, _
-                matchCount) Then
-
-
-            '---------------------------------------------------------------
-            ' Write the matched information into 1-NR-Depo
-            '---------------------------------------------------------------
-
-            WriteDepoRow _
-                wsDepo, _
-                outputRow, _
-                glRecords(i), _
-                dealRecords, _
-                matchIndexes, _
-                matchCount
-
-
-            outputRow = outputRow + 1
-            populatedCount = populatedCount + 1
-
-
-        Else
-
-            unmatchedCount = unmatchedCount + 1
-
-            LogUnmatched glRecords(i)
-
-        End If
-
-    Next i
-
-
-    '---------------------------------------------------------------------------
-    ' Completion message
-    '---------------------------------------------------------------------------
-
-    Dim msg As String
-
-    msg = "1-NR-Depo population completed." & vbCrLf & vbCrLf
-
-    msg = msg & "GL records after filters: " & glCount & vbCrLf
-
-    msg = msg & "Deals records after filters: " & dealCount & vbCrLf
-
-    msg = msg & "Rows populated: " & populatedCount & vbCrLf
-
-    msg = msg & "Unmatched GL records: " & unmatchedCount
-
-
-    If unmatchedCount > 0 Then
-
-        msg = msg & vbCrLf & vbCrLf
-
-        msg = msg & "Unmatched records are listed in the VBA Immediate Window." & vbCrLf
-
-        msg = msg & "Press Ctrl + G in the VBA Editor to view them."
-
-    End If
-
-
-    MsgBox msg, vbInformation, "1-NR-Depo"
-
-
-CleanExit:
-
-    Application.Calculation = xlCalculationAutomatic
-    Application.EnableEvents = True
-    Application.ScreenUpdating = True
-
-    Exit Sub
-
-
-ErrorHandler:
-
-    Application.Calculation = xlCalculationAutomatic
-    Application.EnableEvents = True
-    Application.ScreenUpdating = True
-
-    MsgBox _
-        "Macro stopped because of an error." & vbCrLf & vbCrLf & _
-        "Error Number: " & Err.Number & vbCrLf & _
-        "Description: " & Err.Description, _
-        vbCritical, _
-        "1-NR-Depo Error"
-
-End Sub
-
-
-'===============================================================================
-' LOAD + FILTER GL
-'===============================================================================
-
-Private Sub LoadFilteredGL( _
-    ByVal ws As Worksheet, _
-    ByRef outputArray() As GLRecord, _
-    ByRef outputCount As Long)
-
-    Dim lastRow As Long
-    Dim r As Long
-
-    Dim cOrdinal As Long
-    Dim cClient As Long
-    Dim cLocation As Long
-    Dim cCurrency As Long
-    Dim cExchangeLB As Long
-    Dim cGLType As Long
-
-    Dim ordinalValue As String
-    Dim clientValue As String
-    Dim locationValue As String
-    Dim currencyValue As String
-    Dim glTypeValue As String
-
-    Dim exchangeLB As Double
-
-
-    cOrdinal = ColumnNumber(GL_COL_ORDINAL)
-    cClient = ColumnNumber(GL_COL_CLIENT)
-    cLocation = ColumnNumber(GL_COL_LOCATION)
-    cCurrency = ColumnNumber(GL_COL_CURRENCY)
-    cExchangeLB = ColumnNumber(GL_COL_EXCHANGE_LB)
-    cGLType = ColumnNumber(GL_COL_GL_TYPE)
-
-
-    lastRow = LastUsedRow(ws, cClient)
-
-
-    If lastRow < 2 Then
-
-        outputCount = 0
-
-        Erase outputArray
-
         Exit Sub
 
     End If
 
 
-    ReDim outputArray(1 To lastRow)
-
-    outputCount = 0
-
-
-    '===========================================================================
-    ' Start from row 2 because row 1 contains headers
-    '===========================================================================
-
-    For r = 2 To lastRow
+    '-------------------------------------------------------
+    ' Store the formatting of Row 7
+    ' This is the template formatting for all data rows
+    '-------------------------------------------------------
+    Set sourceFormat = wsOut.Rows(START_ROW)
 
 
-        ordinalValue = Trim$(CStr(ws.Cells(r, cOrdinal).Value))
-        clientValue = Trim$(CStr(ws.Cells(r, cClient).Value))
-        locationValue = Trim$(CStr(ws.Cells(r, cLocation).Value))
-        currencyValue = Trim$(CStr(ws.Cells(r, cCurrency).Value))
-        glTypeValue = Trim$(CStr(ws.Cells(r, cGLType).Value))
+    '-------------------------------------------------------
+    ' Clear old data only
+    ' Do NOT delete the Total row
+    '-------------------------------------------------------
+    If totalRow > START_ROW Then
 
-
-        '-----------------------------------------------------------------------
-        ' Exchange LB must be numeric
-        '-----------------------------------------------------------------------
-
-        If Not IsNumeric(ws.Cells(r, cExchangeLB).Value) Then
-
-            GoTo NextGLRow
-
-        End If
-
-
-        exchangeLB = CDbl(ws.Cells(r, cExchangeLB).Value)
-
-
-        '-----------------------------------------------------------------------
-        ' FILTER 1
-        '
-        ' GL Type / Off Balance
-        '
-        ' AB = BS
-        '---------------------------------------------------------------------------
-
-        If UCase$(glTypeValue) <> UCase$(FILTER_GL_TYPE) Then
-
-            GoTo NextGLRow
-
-        End If
-
-
-        '-----------------------------------------------------------------------
-        ' FILTER 2
-        '
-        ' Ordinal
-        '
-        ' Exclude G35
-        '---------------------------------------------------------------------------
-
-        If UCase$(ordinalValue) = UCase$(FILTER_ORDINAL_EXCLUDE) Then
-
-            GoTo NextGLRow
-
-        End If
-
-
-        '-----------------------------------------------------------------------
-        ' FILTER 3
-        '
-        ' Exchange LB > 0
-        '---------------------------------------------------------------------------
-
-        If exchangeLB <= 0 Then
-
-            GoTo NextGLRow
-
-        End If
-
-
-        '-----------------------------------------------------------------------
-        ' FILTER 4
-        '
-        ' Location
-        '
-        ' Exclude QAR
-        '---------------------------------------------------------------------------
-
-        If UCase$(locationValue) = UCase$(FILTER_LOCATION_EXCLUDE) Then
-
-            GoTo NextGLRow
-
-        End If
-
-
-        '-----------------------------------------------------------------------
-        ' FILTER 5
-        '
-        ' Currency
-        '
-        ' Exclude QAR
-        '---------------------------------------------------------------------------
-
-        If UCase$(currencyValue) = UCase$(FILTER_CURRENCY_EXCLUDE) Then
-
-            GoTo NextGLRow
-
-        End If
-
-
-        '-----------------------------------------------------------------------
-        ' Record passed all filters
-        '---------------------------------------------------------------------------
-
-        outputCount = outputCount + 1
-
-        outputArray(outputCount).RowNumber = r
-
-        outputArray(outputCount).Client = clientValue
-
-        outputArray(outputCount).Location = locationValue
-
-        outputArray(outputCount).Currency = currencyValue
-
-        outputArray(outputCount).Amount = exchangeLB
-
-
-NextGLRow:
-
-    Next r
-
-
-    If outputCount > 0 Then
-
-        ReDim Preserve outputArray(1 To outputCount)
-
-    Else
-
-        Erase outputArray
+        wsOut.Rows(START_ROW & ":" & totalRow - 1).ClearContents
 
     End If
 
-End Sub
 
+    '-------------------------------------------------------
+    ' Find last rows
+    '-------------------------------------------------------
+    glLastRow = wsGL.Cells(wsGL.Rows.Count, "A").End(xlUp).Row
 
-'===============================================================================
-' LOAD + FILTER DEALS
-'===============================================================================
+    dealLastRow = wsDeals.Cells(wsDeals.Rows.Count, "A").End(xlUp).Row
 
-Private Sub LoadFilteredDeals( _
-    ByVal ws As Worksheet, _
-    ByRef outputArray() As DealRecord, _
-    ByRef outputCount As Long)
 
-    Dim lastRow As Long
-    Dim r As Long
+    '-------------------------------------------------------
+    ' Start populating from Row 7
+    '-------------------------------------------------------
+    outRow = START_ROW
 
-    Dim cOrdinal As Long
-    Dim cCurrency As Long
-    Dim cTxnID As Long
-    Dim cValueDate As Long
-    Dim cMaturityDate As Long
-    Dim cInterestRate As Long
-    Dim cLocation As Long
-    Dim cExchangeLB As Long
-    Dim cGLType As Long
 
-    Dim ordinalValue As String
-    Dim currencyValue As String
-    Dim locationValue As String
-    Dim glTypeValue As String
-    Dim transactionID As String
+    '=======================================================
+    ' LOOP THROUGH GL
+    '=======================================================
+    For glRow = 2 To glLastRow
 
-    Dim exchangeLB As Double
 
+        '---------------------------------------------------
+        ' Validate GL record
+        '---------------------------------------------------
+        If IsValidGLRecord(wsGL, glRow) Then
 
-    cOrdinal = ColumnNumber(DEAL_COL_ORDINAL)
-    cCurrency = ColumnNumber(DEAL_COL_CURRENCY)
-    cTxnID = ColumnNumber(DEAL_COL_TXN_ID)
-    cValueDate = ColumnNumber(DEAL_COL_VALUE_DATE)
-    cMaturityDate = ColumnNumber(DEAL_COL_MATURITY_DATE)
-    cInterestRate = ColumnNumber(DEAL_COL_INTEREST_RATE)
-    cLocation = ColumnNumber(DEAL_COL_LOCATION)
-    cExchangeLB = ColumnNumber(DEAL_COL_EXCHANGE_LB)
-    cGLType = ColumnNumber(DEAL_COL_GL_TYPE)
 
+            '------------------------------------------------
+            ' Get amount from GL Column Y
+            '------------------------------------------------
+            amountToMatch = CDbl(Val(wsGL.Cells(glRow, "Y").Value))
 
-    lastRow = LastUsedRow(ws, cTxnID)
 
+            '------------------------------------------------
+            ' Find matching deal
+            '------------------------------------------------
+            Set dealMatches = FindMatchingDeals( _
+                                wsDeals, _
+                                dealLastRow, _
+                                amountToMatch)
 
-    If lastRow < 2 Then
 
-        outputCount = 0
+            '------------------------------------------------
+            ' If matching deal is found
+            '------------------------------------------------
+            If dealMatches.Count > 0 Then
 
-        Erase outputArray
 
-        Exit Sub
+                '------------------------------------------------
+                ' IMPORTANT:
+                ' If outRow reaches Total row,
+                ' insert a new row BEFORE Total.
+                ' This keeps Total at the bottom.
+                '------------------------------------------------
+                If outRow >= totalRow Then
 
-    End If
+                    wsOut.Rows(totalRow).Insert Shift:=xlDown
 
-
-    ReDim outputArray(1 To lastRow)
-
-    outputCount = 0
-
-
-    '===========================================================================
-    ' Start from row 2 because row 1 contains headers
-    '===========================================================================
-
-    For r = 2 To lastRow
-
-
-        ordinalValue = Trim$(CStr(ws.Cells(r, cOrdinal).Value))
-
-        currencyValue = Trim$(CStr(ws.Cells(r, cCurrency).Value))
-
-        locationValue = Trim$(CStr(ws.Cells(r, cLocation).Value))
-
-        glTypeValue = Trim$(CStr(ws.Cells(r, cGLType).Value))
-
-        transactionID = Trim$(CStr(ws.Cells(r, cTxnID).Value))
-
-
-        '-----------------------------------------------------------------------
-        ' Exchange LB must be numeric
-        '-----------------------------------------------------------------------
-
-        If Not IsNumeric(ws.Cells(r, cExchangeLB).Value) Then
-
-            GoTo NextDealRow
-
-        End If
-
-
-        exchangeLB = CDbl(ws.Cells(r, cExchangeLB).Value)
-
-
-        '-----------------------------------------------------------------------
-        ' FILTER 1
-        '
-        ' Ordinal <> G35
-        '---------------------------------------------------------------------------
-
-        If UCase$(ordinalValue) = UCase$(FILTER_ORDINAL_EXCLUDE) Then
-
-            GoTo NextDealRow
-
-        End If
-
-
-        '-----------------------------------------------------------------------
-        ' FILTER 2
-        '
-        ' Exchange LB > 0
-        '---------------------------------------------------------------------------
-
-        If exchangeLB <= 0 Then
-
-            GoTo NextDealRow
-
-        End If
-
-
-        '-----------------------------------------------------------------------
-        ' FILTER 3
-        '
-        ' Location <> QAR
-        '---------------------------------------------------------------------------
-
-        If UCase$(locationValue) = UCase$(FILTER_LOCATION_EXCLUDE) Then
-
-            GoTo NextDealRow
-
-        End If
-
-
-        '-----------------------------------------------------------------------
-        ' FILTER 4
-        '
-        ' GL Type = BS
-        '---------------------------------------------------------------------------
-
-        If UCase$(glTypeValue) <> UCase$(FILTER_GL_TYPE) Then
-
-            GoTo NextDealRow
-
-        End If
-
-
-        '-----------------------------------------------------------------------
-        ' FILTER 5
-        '
-        ' Currency <> QAR
-        '---------------------------------------------------------------------------
-
-        If UCase$(currencyValue) = UCase$(FILTER_CURRENCY_EXCLUDE) Then
-
-            GoTo NextDealRow
-
-        End If
-
-
-        '-----------------------------------------------------------------------
-        ' Record passed all filters
-        '---------------------------------------------------------------------------
-
-        outputCount = outputCount + 1
-
-        outputArray(outputCount).RowNumber = r
-
-        outputArray(outputCount).Ordinal = ordinalValue
-
-        outputArray(outputCount).Location = locationValue
-
-        outputArray(outputCount).Currency = currencyValue
-
-        outputArray(outputCount).Amount = exchangeLB
-
-        outputArray(outputCount).TransactionID = transactionID
-
-        outputArray(outputCount).ValueDate = ws.Cells(r, cValueDate).Value
-
-        outputArray(outputCount).MaturityDate = ws.Cells(r, cMaturityDate).Value
-
-        outputArray(outputCount).InterestRate = ws.Cells(r, cInterestRate).Value
-
-        outputArray(outputCount).Used = False
-
-
-NextDealRow:
-
-    Next r
-
-
-    If outputCount > 0 Then
-
-        ReDim Preserve outputArray(1 To outputCount)
-
-    Else
-
-        Erase outputArray
-
-    End If
-
-End Sub
-
-
-'===============================================================================
-' FIND DEALS MATCH
-'
-' The GL Exchange LB amount is matched against one or more Deals Exchange LB
-' amounts.
-'
-' Example:
-'
-' GL Exchange LB = 100000
-'
-' Deals:
-' 40000
-' 35000
-' 25000
-'
-' 40000 + 35000 + 25000 = 100000
-'
-' The Transaction IDs of those three Deals are written into column F.
-'===============================================================================
-
-Private Function FindDealsMatch( _
-    ByRef gl As GLRecord, _
-    ByRef deals() As DealRecord, _
-    ByVal dealCount As Long, _
-    ByRef matchIndexes() As Long, _
-    ByRef matchCount As Long) As Boolean
-
-
-    Dim candidateIndexes() As Long
-
-    Dim candidateCount As Long
-
-    Dim i As Long
-
-    Dim selectedIndexes() As Long
-
-    Dim selectedCount As Long
-
-
-    matchCount = 0
-
-    FindDealsMatch = False
-
-
-    If dealCount <= 0 Then Exit Function
-
-
-    '===========================================================================
-    ' First find candidate Deals.
-    '
-    ' Currency + Location are used to avoid matching a GL amount against a
-    ' completely unrelated currency/location.
-    '===========================================================================
-
-    ReDim candidateIndexes(1 To dealCount)
-
-    candidateCount = 0
-
-
-    For i = 1 To dealCount
-
-
-        If Not deals(i).Used Then
-
-
-            If UCase$(Trim$(deals(i).Currency)) = _
-               UCase$(Trim$(gl.Currency)) Then
-
-
-                If UCase$(Trim$(deals(i).Location)) = _
-                   UCase$(Trim$(gl.Location)) Then
-
-
-                    candidateCount = candidateCount + 1
-
-                    candidateIndexes(candidateCount) = i
-
+                    'Total row moves down by one
+                    totalRow = totalRow + 1
 
                 End If
+
+
+                '------------------------------------------------
+                ' Copy Row 7 formatting to current output row
+                '------------------------------------------------
+                sourceFormat.Copy
+
+                wsOut.Rows(outRow).PasteSpecial xlPasteFormats
+
+                Application.CutCopyMode = False
+
+
+                '------------------------------------------------
+                ' Keep the same row height as Row 7
+                '------------------------------------------------
+                wsOut.Rows(outRow).RowHeight = _
+                    sourceFormat.RowHeight
+
+
+                '------------------------------------------------
+                ' Populate report row
+                '------------------------------------------------
+                PopulateReportRow _
+                    wsGL, _
+                    wsDeals, _
+                    glRow, _
+                    dealMatches, _
+                    wsOut, _
+                    outRow
+
+
+                '------------------------------------------------
+                ' Move to next output row
+                '------------------------------------------------
+                outRow = outRow + 1
+
 
             End If
 
         End If
 
-    Next i
+    Next glRow
 
 
-    If candidateCount = 0 Then Exit Function
+    '=======================================================
+    ' CLEAN UP UNUSED DATA ROWS
+    '=======================================================
+
+    If outRow < totalRow Then
+
+        wsOut.Rows(outRow & ":" & totalRow - 1).ClearContents
+
+        'Restore formatting for unused rows
+        wsOut.Rows(outRow & ":" & totalRow - 1).ClearFormats
+
+    End If
 
 
-    '===========================================================================
-    ' STEP 1
-    '
-    ' Check whether one Deal exactly matches the GL amount.
-    '===========================================================================
+    '=======================================================
+    ' MAKE SURE SERIAL NUMBERS ARE CORRECT
+    '=======================================================
 
-    For i = 1 To candidateCount
+    Dim serialRow As Long
+    Dim serialNumber As Long
 
+    serialNumber = 1
 
-        If Abs( _
-            deals(candidateIndexes(i)).Amount - gl.Amount _
-            ) <= AMOUNT_TOLERANCE Then
+    If outRow > START_ROW Then
 
+        For serialRow = START_ROW To outRow - 1
 
-            ReDim matchIndexes(1 To 1)
+            wsOut.Cells(serialRow, "B").Value = serialNumber
 
-            matchIndexes(1) = candidateIndexes(i)
+            serialNumber = serialNumber + 1
 
-            matchCount = 1
+        Next serialRow
 
-
-            deals(candidateIndexes(i)).Used = True
+    End If
 
 
-            FindDealsMatch = True
+    '=======================================================
+    ' MESSAGE
+    '=======================================================
+
+    MsgBox "1NR DEPO populated successfully." & vbCrLf & _
+           "Total records populated: " & _
+           IIf(outRow > START_ROW, outRow - START_ROW, 0), _
+           vbInformation
+
+
+End Sub
+
+
+'===========================================================
+' FIND TOTAL ROW
+'===========================================================
+Private Function FindTotalRow(ws As Worksheet) As Long
+
+    Dim lastRow As Long
+    Dim r As Long
+
+
+    lastRow = ws.Cells(ws.Rows.Count, "B").End(xlUp).Row
+
+
+    For r = START_ROW To lastRow
+
+        If UCase(Trim(ws.Cells(r, "B").Value)) = "TOTAL" Then
+
+            FindTotalRow = r
 
             Exit Function
 
+        End If
+
+    Next r
+
+
+    'Fallback - search Column A also
+    For r = START_ROW To ws.Cells(ws.Rows.Count, "A").End(xlUp).Row
+
+        If UCase(Trim(ws.Cells(r, "A").Value)) = "TOTAL" Then
+
+            FindTotalRow = r
+
+            Exit Function
 
         End If
 
-    Next i
+    Next r
 
 
-    '===========================================================================
-    ' STEP 2
-    '
-    ' Multiple Deals may need to be combined.
-    '===========================================================================
-
-    ReDim selectedIndexes(1 To MAX_DEALS_PER_GL)
-
-    selectedCount = 0
-
-
-    If SearchDealCombination( _
-            deals, _
-            candidateIndexes, _
-            candidateCount, _
-            1, _
-            gl.Amount, _
-            selectedIndexes, _
-            selectedCount, _
-            MAX_DEALS_PER_GL) Then
-
-
-        ReDim matchIndexes(1 To selectedCount)
-
-
-        For i = 1 To selectedCount
-
-            matchIndexes(i) = selectedIndexes(i)
-
-            deals(selectedIndexes(i)).Used = True
-
-        Next i
-
-
-        matchCount = selectedCount
-
-        FindDealsMatch = True
-
-
-    End If
+    FindTotalRow = 0
 
 End Function
 
 
-'===============================================================================
-' SEARCH DEAL COMBINATION
-'
-' Recursive search used to find multiple Deals whose total amount equals the
-' GL amount.
-'===============================================================================
-
-Private Function SearchDealCombination( _
-    ByRef deals() As DealRecord, _
-    ByRef candidateIndexes() As Long, _
-    ByVal candidateCount As Long, _
-    ByVal startPosition As Long, _
-    ByVal targetAmount As Double, _
-    ByRef selectedIndexes() As Long, _
-    ByRef selectedCount As Long, _
-    ByVal maxDepth As Long) As Boolean
+'===========================================================
+' VALIDATE GL RECORD
+'===========================================================
+Private Function IsValidGLRecord( _
+        ws As Worksheet, _
+        rw As Long) As Boolean
 
 
-    Dim i As Long
-
-    Dim currentSum As Double
-
-    Dim dealAmount As Double
+    'Default = False
+    IsValidGLRecord = False
 
 
-    SearchDealCombination = False
-
-
-    If selectedCount >= maxDepth Then
+    '-------------------------------------------------------
+    ' Column AB must be BS
+    '-------------------------------------------------------
+    If Trim(ws.Cells(rw, "AB").Value) <> "BS" Then
 
         Exit Function
 
     End If
 
 
-    currentSum = SumSelectedDeals( _
-                    deals, _
-                    selectedIndexes, _
-                    selectedCount)
+    '-------------------------------------------------------
+    ' Column E must not be G35
+    '-------------------------------------------------------
+    If Trim(ws.Cells(rw, "E").Value) = "G35" Then
+
+        Exit Function
+
+    End If
 
 
-    For i = startPosition To candidateCount
+    '-------------------------------------------------------
+    ' Column Y amount must be greater than zero
+    '-------------------------------------------------------
+    If CDbl(Val(ws.Cells(rw, "Y").Value)) <= 0 Then
+
+        Exit Function
+
+    End If
 
 
-        dealAmount = deals(candidateIndexes(i)).Amount
+    '-------------------------------------------------------
+    ' Column H cannot be QAR
+    '-------------------------------------------------------
+    If UCase(Trim(ws.Cells(rw, "H").Value)) = "QAR" Then
+
+        Exit Function
+
+    End If
 
 
-        '-----------------------------------------------------------------------
-        ' If adding this Deal reaches the target
-        '-----------------------------------------------------------------------
+    '-------------------------------------------------------
+    ' Column I cannot be QAR
+    '-------------------------------------------------------
+    If UCase(Trim(ws.Cells(rw, "I").Value)) = "QAR" Then
 
-        If Abs( _
-            (currentSum + dealAmount) - targetAmount _
-            ) <= AMOUNT_TOLERANCE Then
+        Exit Function
 
-
-            selectedCount = selectedCount + 1
-
-            selectedIndexes(selectedCount) = candidateIndexes(i)
+    End If
 
 
-            SearchDealCombination = True
-
-            Exit Function
-
-
-        End If
+    '-------------------------------------------------------
+    ' Valid GL record
+    '-------------------------------------------------------
+    IsValidGLRecord = True
 
 
-        '-----------------------------------------------------------------------
-        ' Only continue if the amount does not exceed the target.
-        '
-        ' This is valid because Deals were filtered to Exchange LB > 0.
-        '-----------------------------------------------------------------------
-
-        If currentSum + dealAmount < targetAmount Then
+End Function
 
 
-            selectedCount = selectedCount + 1
-
-            selectedIndexes(selectedCount) = candidateIndexes(i)
-
-
-            If SearchDealCombination( _
-                    deals, _
-                    candidateIndexes, _
-                    candidateCount, _
-                    i + 1, _
-                    targetAmount, _
-                    selectedIndexes, _
-                    selectedCount, _
-                    maxDepth) Then
+'===========================================================
+' VALIDATE DEAL RECORD
+'===========================================================
+Private Function IsValidDealRecord( _
+        ws As Worksheet, _
+        rw As Long) As Boolean
 
 
-                SearchDealCombination = True
+    'Default = False
+    IsValidDealRecord = False
 
-                Exit Function
+
+    '-------------------------------------------------------
+    ' Column F must not be G35
+    '-------------------------------------------------------
+    If Trim(ws.Cells(rw, "F").Value) = "G35" Then
+
+        Exit Function
+
+    End If
+
+
+    '-------------------------------------------------------
+    ' Column W amount must be greater than zero
+    '-------------------------------------------------------
+    If CDbl(Val(ws.Cells(rw, "W").Value)) <= 0 Then
+
+        Exit Function
+
+    End If
+
+
+    '-------------------------------------------------------
+    ' Column S cannot be QAR
+    '-------------------------------------------------------
+    If UCase(Trim(ws.Cells(rw, "S").Value)) = "QAR" Then
+
+        Exit Function
+
+    End If
+
+
+    '-------------------------------------------------------
+    ' Column Z must be BS
+    '-------------------------------------------------------
+    If Trim(ws.Cells(rw, "Z").Value) <> "BS" Then
+
+        Exit Function
+
+    End If
+
+
+    '-------------------------------------------------------
+    ' Column G cannot be QAR
+    '-------------------------------------------------------
+    If UCase(Trim(ws.Cells(rw, "G").Value)) = "QAR" Then
+
+        Exit Function
+
+    End If
+
+
+    '-------------------------------------------------------
+    ' Valid Deal record
+    '-------------------------------------------------------
+    IsValidDealRecord = True
+
+
+End Function
+
+
+'===========================================================
+' FIND MATCHING DEAL
+'===========================================================
+Private Function FindMatchingDeals( _
+        wsDeals As Worksheet, _
+        lastRow As Long, _
+        targetAmount As Double) As Collection
+
+
+    Dim matches As New Collection
+
+    Dim r As Long
+    Dim dealAmount As Double
+
+
+    '-------------------------------------------------------
+    ' Search Deals sheet
+    '-------------------------------------------------------
+    For r = 2 To lastRow
+
+
+        If IsValidDealRecord(wsDeals, r) Then
+
+
+            '-----------------------------------------------
+            ' Deal amount is Column W
+            '-----------------------------------------------
+            dealAmount = CDbl(Val(wsDeals.Cells(r, "W").Value))
+
+
+            '-----------------------------------------------
+            ' Match amount up to 2 decimal places
+            '-----------------------------------------------
+            If Round(dealAmount, 2) = _
+               Round(targetAmount, 2) Then
+
+
+                matches.Add r
+
+
+                'Only first matching deal is required
+                Exit For
 
 
             End If
 
 
-            ' Backtrack
-            selectedCount = selectedCount - 1
-
-
         End If
 
+    Next r
 
-    Next i
+
+    Set FindMatchingDeals = matches
+
 
 End Function
 
 
-'===============================================================================
-' SUM SELECTED DEALS
-'===============================================================================
+'===========================================================
+' POPULATE OUTPUT ROW
+'===========================================================
+Private Sub PopulateReportRow( _
+        wsGL As Worksheet, _
+        wsDeals As Worksheet, _
+        glRow As Long, _
+        matches As Collection, _
+        wsOut As Worksheet, _
+        outRow As Long)
 
-Private Function SumSelectedDeals( _
-    ByRef deals() As DealRecord, _
-    ByRef selectedIndexes() As Long, _
-    ByVal selectedCount As Long) As Double
 
+    Dim dealRow As Long
+    Dim locationCode As String
 
-    Dim i As Long
 
-    Dim total As Double
+    '-------------------------------------------------------
+    ' Get first matching Deal row
+    '-------------------------------------------------------
+    dealRow = matches(1)
 
 
-    total = 0
+    '-------------------------------------------------------
+    ' Location code from GL Column H
+    '-------------------------------------------------------
+    locationCode = Trim(wsGL.Cells(glRow, "H").Value)
 
 
-    For i = 1 To selectedCount
+    '=======================================================
+    ' POPULATE DATA
+    '=======================================================
+    With wsOut
 
-        total = total + deals(selectedIndexes(i)).Amount
 
-    Next i
+        '---------------------------------------------------
+        ' B = Serial Number
+        '---------------------------------------------------
+        .Cells(outRow, "B").Value = _
+            outRow - START_ROW + 1
 
 
-    SumSelectedDeals = total
+        '---------------------------------------------------
+        ' C = Client
+        ' GL Column G
+        '---------------------------------------------------
+        .Cells(outRow, "C").Value = _
+            wsGL.Cells(glRow, "G").Value
 
-End Function
 
+        '---------------------------------------------------
+        ' D = Country
+        '---------------------------------------------------
+        .Cells(outRow, "D").Value = _
+            GetCountry(locationCode)
 
-'===============================================================================
-' WRITE DATA TO 1-NR-DEPO
-'===============================================================================
 
-Private Sub WriteDepoRow( _
-    ByVal ws As Worksheet, _
-    ByVal outputRow As Long, _
-    ByRef gl As GLRecord, _
-    ByRef deals() As DealRecord, _
-    ByRef matchIndexes() As Long, _
-    ByVal matchCount As Long)
+        '---------------------------------------------------
+        ' E = Region
+        '---------------------------------------------------
+        .Cells(outRow, "E").Value = _
+            GetRegion(locationCode)
 
 
-    Dim i As Long
+        '---------------------------------------------------
+        ' F = Transaction ID
+        ' Deals Column K
+        '---------------------------------------------------
+        .Cells(outRow, "F").Value = _
+            wsDeals.Cells(dealRow, "K").Value
 
-    Dim transactionIDs As String
 
-    Dim firstDeal As DealRecord
+        '---------------------------------------------------
+        ' G = Type of Facility
+        ' Deals Column G
+        '---------------------------------------------------
+        .Cells(outRow, "G").Value = _
+            wsDeals.Cells(dealRow, "G").Value
 
-    Dim maturityRemaining As Variant
 
+        '---------------------------------------------------
+        ' H = Currency
+        ' Deals Column L
+        '---------------------------------------------------
+        .Cells(outRow, "H").Value = _
+            wsDeals.Cells(dealRow, "L").Value
 
-    '===========================================================================
-    ' First matched Deal is used for:
-    '
-    ' Currency
-    ' Value Date
-    ' Maturity Date
-    ' Interest Rate
-    '===========================================================================
 
-    firstDeal = deals(matchIndexes(1))
+        '---------------------------------------------------
+        ' I = Value Date
+        ' Deals Column M
+        '---------------------------------------------------
+        .Cells(outRow, "I").Value = _
+            wsDeals.Cells(dealRow, "M").Value
 
 
-    '===========================================================================
-    ' Combine Transaction IDs
-    '===========================================================================
+        '---------------------------------------------------
+        ' J = Maturity Date
+        '---------------------------------------------------
+        .Cells(outRow, "J").Value = _
+            wsDeals.Cells(dealRow, "M").Value - _
+            wsDeals.Cells(dealRow, "L").Value
 
-    transactionIDs = ""
 
+        '---------------------------------------------------
+        ' L = Interest Rate
+        ' Deals Column Q
+        '---------------------------------------------------
+        .Cells(outRow, "L").Value = _
+            wsDeals.Cells(dealRow, "Q").Value
 
-    For i = 1 To matchCount
 
+    End With
 
-        If Len(transactionIDs) > 0 Then
-
-            transactionIDs = transactionIDs & ", "
-
-        End If
-
-
-        transactionIDs = transactionIDs & _
-                         deals(matchIndexes(i)).TransactionID
-
-
-    Next i
-
-
-    '===========================================================================
-    ' CLIENT
-    '
-    ' GL column G -> 1-NR-Depo column C
-    '===========================================================================
-
-    ws.Range(OUT_CLIENT & outputRow).Value = gl.Client
-
-
-    '===========================================================================
-    ' COUNTRY
-    '
-    ' GL Location -> Country
-    '===========================================================================
-
-    ws.Range(OUT_COUNTRY & outputRow).Value = _
-        LocationToCountry(gl.Location)
-
-
-    '===========================================================================
-    ' REGION
-    '
-    ' GL Location -> Region
-    '===========================================================================
-
-    ws.Range(OUT_REGION & outputRow).Value = _
-        LocationToRegion(gl.Location)
-
-
-    '===========================================================================
-    ' TRANSACTION ID
-    '
-    ' Deals column K
-    '===========================================================================
-
-    ws.Range(OUT_TRANSACTION_ID & outputRow).Value = _
-        transactionIDs
-
-
-    '===========================================================================
-    ' CURRENCY
-    '
-    ' Deals column G
-    '===========================================================================
-
-    ws.Range(OUT_CURRENCY & outputRow).Value = _
-        firstDeal.Currency
-
-
-    '===========================================================================
-    ' VALUE DATE
-    '
-    ' Deals column L
-    '===========================================================================
-
-    ws.Range(OUT_VALUE_DATE & outputRow).Value = _
-        firstDeal.ValueDate
-
-
-    '===========================================================================
-    ' MATURITY DATE
-    '
-    ' Deals column M
-    '===========================================================================
-
-    ws.Range(OUT_MATURITY_DATE & outputRow).Value = _
-        firstDeal.MaturityDate
-
-
-    '===========================================================================
-    ' MATURITY REMAINING
-    '
-    ' Maturity Date - Value Date
-    '===========================================================================
-
-    If IsDate(firstDeal.MaturityDate) And _
-       IsDate(firstDeal.ValueDate) Then
-
-
-        maturityRemaining = _
-            CDate(firstDeal.MaturityDate) - _
-            CDate(firstDeal.ValueDate)
-
-
-    Else
-
-        maturityRemaining = ""
-
-    End If
-
-
-    ws.Range(OUT_MATURITY_REMAINING & outputRow).Value = _
-        maturityRemaining
-
-
-    '===========================================================================
-    ' INTEREST RATE
-    '
-    ' Deals column Q
-    '===========================================================================
-
-    ws.Range(OUT_INTEREST_RATE & outputRow).Value = _
-        firstDeal.InterestRate
 
 End Sub
 
 
-'===============================================================================
-' CLEAR PREVIOUS OUTPUT
-'===============================================================================
-
-Private Sub ClearDepoOutput(ByVal ws As Worksheet)
-
-
-    Dim lastRow As Long
-
-    Dim columnsToClear As Variant
-
-    Dim i As Long
+'===========================================================
+' GET COUNTRY
+'===========================================================
+Private Function GetCountry(locCode As String) As String
 
 
-    lastRow = ws.Cells( _
-                    ws.Rows.Count, _
-                    ColumnNumber(OUT_CLIENT) _
-                  ).End(xlUp).Row
+    Select Case UCase(Trim(locCode))
 
 
-    If lastRow < OUTPUT_START_ROW Then Exit Sub
+        Case "IN"
+            GetCountry = "INDIA"
 
 
-    columnsToClear = Array( _
-        OUT_CLIENT, _
-        OUT_COUNTRY, _
-        OUT_REGION, _
-        OUT_TRANSACTION_ID, _
-        OUT_CURRENCY, _
-        OUT_VALUE_DATE, _
-        OUT_MATURITY_DATE, _
-        OUT_MATURITY_REMAINING, _
-        OUT_INTEREST_RATE _
-    )
+        Case "SG"
+            GetCountry = "SINGAPORE"
 
 
-    For i = LBound(columnsToClear) To UBound(columnsToClear)
+        Case "AE"
+            GetCountry = "UNITED ARAB EMIRATES"
 
 
-        ws.Range( _
-            columnsToClear(i) & OUTPUT_START_ROW & ":" & _
-            columnsToClear(i) & lastRow _
-        ).ClearContents
+        Case "FR"
+            GetCountry = "FRANCE"
 
 
-    Next i
-
-End Sub
-
-
-'===============================================================================
-' LOCATION -> COUNTRY
-'
-' This is currently a basic mapping.
-'
-' If your workbook has a Mapping sheet containing the official Country mapping,
-' we should replace this section with a Mapping-sheet lookup.
-'===============================================================================
-
-Private Function LocationToCountry(ByVal locationCode As String) As String
+        Case "US"
+            GetCountry = "UNITED STATES"
 
 
-    Dim dictionary As Object
-
-    Set dictionary = CreateObject("Scripting.Dictionary")
-
-    dictionary.CompareMode = vbTextCompare
+        Case "QA", "QAR"
+            GetCountry = "QATAR"
 
 
-    dictionary("QA") = "Qatar"
-    dictionary("QAR") = "Qatar"
-
-    dictionary("AE") = "United Arab Emirates"
-    dictionary("BH") = "Bahrain"
-    dictionary("FR") = "France"
-    dictionary("GB") = "United Kingdom"
-    dictionary("US") = "United States"
-    dictionary("CA") = "Canada"
-    dictionary("SA") = "Saudi Arabia"
+        Case Else
+            GetCountry = locCode
 
 
-    If dictionary.Exists(Trim$(locationCode)) Then
+    End Select
 
-        LocationToCountry = dictionary(Trim$(locationCode))
-
-    Else
-
-        'If mapping does not exist, return original code
-        LocationToCountry = locationCode
-
-    End If
 
 End Function
 
 
-'===============================================================================
-' LOCATION -> REGION
-'===============================================================================
-
-Private Function LocationToRegion(ByVal locationCode As String) As String
-
-
-    Dim dictionary As Object
-
-    Set dictionary = CreateObject("Scripting.Dictionary")
-
-    dictionary.CompareMode = vbTextCompare
+'===========================================================
+' GET REGION
+'===========================================================
+Private Function GetRegion(locCode As String) As String
 
 
-    dictionary("QA") = "Middle East"
-    dictionary("QAR") = "Middle East"
-
-    dictionary("AE") = "Middle East"
-    dictionary("BH") = "Middle East"
-    dictionary("SA") = "Middle East"
-
-    dictionary("FR") = "Europe"
-    dictionary("GB") = "Europe"
-
-    dictionary("US") = "North America"
-    dictionary("CA") = "North America"
+    Select Case UCase(Trim(locCode))
 
 
-    If dictionary.Exists(Trim$(locationCode)) Then
+        '---------------------------------------------------
+        ' ASIA
+        '---------------------------------------------------
+        Case "IN", "SG", "CN", "JP", "HK"
 
-        LocationToRegion = dictionary(Trim$(locationCode))
+            GetRegion = "ASIA"
 
-    Else
 
-        'If mapping does not exist, return original code
-        LocationToRegion = locationCode
+        '---------------------------------------------------
+        ' GCC
+        '---------------------------------------------------
+        Case "AE", "BH", "KW", "OM", "SA"
 
-    End If
+            GetRegion = "GCC"
+
+
+        '---------------------------------------------------
+        ' NORTH AMERICA
+        '---------------------------------------------------
+        Case "US", "CA"
+
+            GetRegion = "N AM"
+
+
+        '---------------------------------------------------
+        ' EUROPE
+        '---------------------------------------------------
+        Case "FR", "DE", "NL", "BE", "ES"
+
+            GetRegion = "EU"
+
+
+        '---------------------------------------------------
+        ' QATAR
+        '---------------------------------------------------
+        Case "QA", "QAR"
+
+            GetRegion = "QATAR"
+
+
+        '---------------------------------------------------
+        ' Other
+        '---------------------------------------------------
+        Case Else
+
+            GetRegion = ""
+
+
+    End Select
+
 
 End Function
-
-
-'===============================================================================
-' GET WORKSHEET
-'===============================================================================
-
-Private Function GetWorksheetIfExists( _
-    ByVal sheetName As String) As Worksheet
-
-
-    On Error Resume Next
-
-    Set GetWorksheetIfExists = _
-        ThisWorkbook.Worksheets(sheetName)
-
-    On Error GoTo 0
-
-End Function
-
-
-'===============================================================================
-' GET LAST USED ROW
-'===============================================================================
-
-Private Function LastUsedRow( _
-    ByVal ws As Worksheet, _
-    ByVal columnNumber As Long) As Long
-
-
-    LastUsedRow = ws.Cells( _
-                        ws.Rows.Count, _
-                        columnNumber _
-                      ).End(xlUp).Row
-
-End Function
-
-
-'===============================================================================
-' COLUMN LETTER -> COLUMN NUMBER
-'
-' Example:
-'
-' A  -> 1
-' G  -> 7
-' Y  -> 25
-' AB -> 28
-'===============================================================================
-
-Private Function ColumnNumber( _
-    ByVal columnLetter As String) As Long
-
-
-    ColumnNumber = _
-        ThisWorkbook.Worksheets(1).Range( _
-            UCase$(Trim$(columnLetter)) & "1" _
-        ).Column
-
-End Function
-
-
-'===============================================================================
-' LOG UNMATCHED GL RECORD
-'===============================================================================
-
-Private Sub LogUnmatched(ByRef gl As GLRecord)
-
-
-    Debug.Print _
-        "UNMATCHED GL RECORD" & _
-        " | GL Row = " & gl.RowNumber & _
-        " | Client = " & gl.Client & _
-        " | Location = " & gl.Location & _
-        " | Currency = " & gl.Currency & _
-        " | Exchange LB = " & gl.Amount
-
-End Sub
