@@ -4,7 +4,7 @@ Private Const START_ROW As Long = 7
 
 
 '===========================================================
-' BUTTON MACRO
+' BUTTON
 '===========================================================
 Sub Button3_Click()
 
@@ -29,27 +29,38 @@ Sub Populate_1NR_DEPO()
     Dim outRow As Long
     Dim totalRow As Long
 
+    Dim dataRows As Collection
     Dim dealMatches As Collection
+
     Dim amountToMatch As Double
 
     Dim sourceFormat As Range
 
-    '-------------------------------------------------------
-    ' Set worksheets
-    '-------------------------------------------------------
+    Dim requiredRows As Long
+    Dim availableRows As Long
+    Dim rowsToInsert As Long
+    Dim rowsToDelete As Long
+
+    Dim i As Long
+    Dim serialNumber As Long
+
+
+    '=======================================================
+    ' SET WORKSHEETS
+    '=======================================================
     Set wsGL = ThisWorkbook.Worksheets("GL")
     Set wsDeals = ThisWorkbook.Worksheets("Deals")
     Set wsOut = ThisWorkbook.Worksheets("1-NR-Depo")
 
 
-    '-------------------------------------------------------
-    ' Find Total row in Column B
-    '-------------------------------------------------------
+    '=======================================================
+    ' FIND CURRENT TOTAL ROW
+    '=======================================================
     totalRow = FindTotalRow(wsOut)
 
     If totalRow = 0 Then
 
-        MsgBox "Total row was not found in the 1-NR-Depo sheet.", _
+        MsgBox "Total row was not found in 1-NR-Depo.", _
                vbCritical
 
         Exit Sub
@@ -57,123 +68,38 @@ Sub Populate_1NR_DEPO()
     End If
 
 
-    '-------------------------------------------------------
-    ' Store the formatting of Row 7
-    ' This is the template formatting for all data rows
-    '-------------------------------------------------------
+    '=======================================================
+    ' SAVE ROW 7 AS FORMATTING TEMPLATE
+    '=======================================================
     Set sourceFormat = wsOut.Rows(START_ROW)
 
 
-    '-------------------------------------------------------
-    ' Clear old data only
-    ' Do NOT delete the Total row
-    '-------------------------------------------------------
-    If totalRow > START_ROW Then
-
-        wsOut.Rows(START_ROW & ":" & totalRow - 1).ClearContents
-
-    End If
-
-
-    '-------------------------------------------------------
-    ' Find last rows
-    '-------------------------------------------------------
+    '=======================================================
+    ' FIND LAST ROWS
+    '=======================================================
     glLastRow = wsGL.Cells(wsGL.Rows.Count, "A").End(xlUp).Row
 
     dealLastRow = wsDeals.Cells(wsDeals.Rows.Count, "A").End(xlUp).Row
 
 
-    '-------------------------------------------------------
-    ' Start populating from Row 7
-    '-------------------------------------------------------
-    outRow = START_ROW
+    '=======================================================
+    ' COLLECT ALL VALID GL RECORDS
+    '
+    ' IMPORTANT:
+    ' We do NOT require a Deals match here.
+    '
+    ' Therefore:
+    ' GL record + Deals match    -> normal population
+    ' GL record + no Deals match -> Deals fields = 0
+    '=======================================================
+    Set dataRows = New Collection
 
 
-    '=======================================================
-    ' LOOP THROUGH GL
-    '=======================================================
     For glRow = 2 To glLastRow
 
-
-        '---------------------------------------------------
-        ' Validate GL record
-        '---------------------------------------------------
         If IsValidGLRecord(wsGL, glRow) Then
 
-
-            '------------------------------------------------
-            ' Get amount from GL Column Y
-            '------------------------------------------------
-            amountToMatch = CDbl(Val(wsGL.Cells(glRow, "Y").Value))
-
-
-            '------------------------------------------------
-            ' Find matching deal
-            '------------------------------------------------
-            Set dealMatches = FindMatchingDeals( _
-                                wsDeals, _
-                                dealLastRow, _
-                                amountToMatch)
-
-
-            '------------------------------------------------
-            ' If matching deal is found
-            '------------------------------------------------
-            If dealMatches.Count > 0 Then
-
-
-                '------------------------------------------------
-                ' IMPORTANT:
-                ' If outRow reaches Total row,
-                ' insert a new row BEFORE Total.
-                ' This keeps Total at the bottom.
-                '------------------------------------------------
-                If outRow >= totalRow Then
-
-                    wsOut.Rows(totalRow).Insert Shift:=xlDown
-
-                    'Total row moves down by one
-                    totalRow = totalRow + 1
-
-                End If
-
-
-                '------------------------------------------------
-                ' Copy Row 7 formatting to current output row
-                '------------------------------------------------
-                sourceFormat.Copy
-
-                wsOut.Rows(outRow).PasteSpecial xlPasteFormats
-
-                Application.CutCopyMode = False
-
-
-                '------------------------------------------------
-                ' Keep the same row height as Row 7
-                '------------------------------------------------
-                wsOut.Rows(outRow).RowHeight = _
-                    sourceFormat.RowHeight
-
-
-                '------------------------------------------------
-                ' Populate report row
-                '------------------------------------------------
-                PopulateReportRow _
-                    wsGL, _
-                    wsDeals, _
-                    glRow, _
-                    dealMatches, _
-                    wsOut, _
-                    outRow
-
-
-                '------------------------------------------------
-                ' Move to next output row
-                '------------------------------------------------
-                outRow = outRow + 1
-
-
-            End If
+            dataRows.Add glRow
 
         End If
 
@@ -181,49 +107,193 @@ Sub Populate_1NR_DEPO()
 
 
     '=======================================================
-    ' CLEAN UP UNUSED DATA ROWS
+    ' NUMBER OF RECORDS REQUIRED
     '=======================================================
+    requiredRows = dataRows.Count
 
-    If outRow < totalRow Then
 
-        wsOut.Rows(outRow & ":" & totalRow - 1).ClearContents
+    '=======================================================
+    ' CURRENT NUMBER OF DATA ROWS
+    ' Total row is NOT a data row
+    '=======================================================
+    availableRows = totalRow - START_ROW
 
-        'Restore formatting for unused rows
-        wsOut.Rows(outRow & ":" & totalRow - 1).ClearFormats
+
+    '=======================================================
+    ' ADD ROWS IF REQUIRED
+    '=======================================================
+    If requiredRows > availableRows Then
+
+        rowsToInsert = requiredRows - availableRows
+
+        wsOut.Rows(totalRow).Resize(rowsToInsert).Insert _
+            Shift:=xlDown
+
+        'Total row moves down
+        totalRow = totalRow + rowsToInsert
 
     End If
 
 
     '=======================================================
-    ' MAKE SURE SERIAL NUMBERS ARE CORRECT
+    ' DELETE EXTRA ROWS IF REQUIRED
+    '
+    ' This makes Total row dynamic and keeps it directly
+    ' below the populated data.
     '=======================================================
+    If requiredRows < availableRows Then
 
-    Dim serialRow As Long
-    Dim serialNumber As Long
+        rowsToDelete = availableRows - requiredRows
 
+        If rowsToDelete > 0 Then
+
+            wsOut.Rows( _
+                START_ROW + requiredRows & ":" & _
+                totalRow - 1 _
+            ).Delete
+
+            'Total row moves up
+            totalRow = totalRow - rowsToDelete
+
+        End If
+
+    End If
+
+
+    '=======================================================
+    ' CLEAR EXISTING DATA AREA
+    '=======================================================
+    If requiredRows > 0 Then
+
+        wsOut.Range( _
+            "B" & START_ROW & ":N" & _
+            totalRow - 1 _
+        ).ClearContents
+
+    End If
+
+
+    '=======================================================
+    ' POPULATE DATA
+    '=======================================================
+    outRow = START_ROW
     serialNumber = 1
 
-    If outRow > START_ROW Then
 
-        For serialRow = START_ROW To outRow - 1
+    For i = 1 To dataRows.Count
 
-            wsOut.Cells(serialRow, "B").Value = serialNumber
+        glRow = dataRows(i)
 
-            serialNumber = serialNumber + 1
 
-        Next serialRow
+        '---------------------------------------------------
+        ' Get GL amount
+        '---------------------------------------------------
+        amountToMatch = CDbl( _
+            Val(wsGL.Cells(glRow, "Y").Value) _
+        )
+
+
+        '---------------------------------------------------
+        ' Find matching Deals
+        '---------------------------------------------------
+        Set dealMatches = FindMatchingDeals( _
+                            wsDeals, _
+                            dealLastRow, _
+                            amountToMatch)
+
+
+        '---------------------------------------------------
+        ' Apply Row 7 formatting to output row
+        '---------------------------------------------------
+        sourceFormat.Copy
+
+        wsOut.Rows(outRow).PasteSpecial xlPasteFormats
+
+        Application.CutCopyMode = False
+
+        wsOut.Rows(outRow).RowHeight = _
+            sourceFormat.RowHeight
+
+
+        '---------------------------------------------------
+        ' Populate output
+        '
+        ' If Deals match exists:
+        '     GL + Deals data
+        '
+        ' If Deals match does NOT exist:
+        '     GL data + Deals fields = 0
+        '---------------------------------------------------
+        PopulateReportRow _
+            wsGL, _
+            wsDeals, _
+            glRow, _
+            dealMatches, _
+            wsOut, _
+            outRow, _
+            serialNumber
+
+
+        '---------------------------------------------------
+        ' Next row
+        '---------------------------------------------------
+        outRow = outRow + 1
+        serialNumber = serialNumber + 1
+
+    Next i
+
+
+    '=======================================================
+    ' IF THERE ARE NO RECORDS
+    '=======================================================
+    If requiredRows = 0 Then
+
+        'Total will remain at Row 7
+
+        wsOut.Range("B" & START_ROW & ":N" & START_ROW - 1).ClearContents
 
     End If
 
 
     '=======================================================
-    ' MESSAGE
+    ' MAKE SURE TOTAL ROW IS AT THE BOTTOM
     '=======================================================
+    totalRow = FindTotalRow(wsOut)
 
-    MsgBox "1NR DEPO populated successfully." & vbCrLf & _
-           "Total records populated: " & _
-           IIf(outRow > START_ROW, outRow - START_ROW, 0), _
-           vbInformation
+
+    If totalRow = 0 Then
+
+        MsgBox "Data populated, but Total row could not be found.", _
+               vbExclamation
+
+        Exit Sub
+
+    End If
+
+
+    '=======================================================
+    ' FINAL SERIAL NUMBER CHECK
+    '=======================================================
+    If requiredRows > 0 Then
+
+        For i = START_ROW To totalRow - 1
+
+            wsOut.Cells(i, "B").Value = _
+                i - START_ROW + 1
+
+        Next i
+
+    End If
+
+
+    '=======================================================
+    ' SUCCESS MESSAGE
+    '=======================================================
+    MsgBox _
+        "1-NR-DEPO populated successfully." & vbCrLf & vbCrLf & _
+        "Records populated: " & requiredRows & vbCrLf & _
+        "Total row: " & totalRow, _
+        vbInformation
 
 
 End Sub
@@ -238,12 +308,15 @@ Private Function FindTotalRow(ws As Worksheet) As Long
     Dim r As Long
 
 
+    '-------------------------------------------------------
+    ' First search Column B
+    '-------------------------------------------------------
     lastRow = ws.Cells(ws.Rows.Count, "B").End(xlUp).Row
 
 
     For r = START_ROW To lastRow
 
-        If UCase(Trim(ws.Cells(r, "B").Value)) = "TOTAL" Then
+        If UCase(Trim(CStr(ws.Cells(r, "B").Value))) = "TOTAL" Then
 
             FindTotalRow = r
 
@@ -254,10 +327,15 @@ Private Function FindTotalRow(ws As Worksheet) As Long
     Next r
 
 
-    'Fallback - search Column A also
-    For r = START_ROW To ws.Cells(ws.Rows.Count, "A").End(xlUp).Row
+    '-------------------------------------------------------
+    ' Then search Column A
+    '-------------------------------------------------------
+    lastRow = ws.Cells(ws.Rows.Count, "A").End(xlUp).Row
 
-        If UCase(Trim(ws.Cells(r, "A").Value)) = "TOTAL" Then
+
+    For r = START_ROW To lastRow
+
+        If UCase(Trim(CStr(ws.Cells(r, "A").Value))) = "TOTAL" Then
 
             FindTotalRow = r
 
@@ -268,7 +346,11 @@ Private Function FindTotalRow(ws As Worksheet) As Long
     Next r
 
 
+    '-------------------------------------------------------
+    ' Total not found
+    '-------------------------------------------------------
     FindTotalRow = 0
+
 
 End Function
 
@@ -281,14 +363,13 @@ Private Function IsValidGLRecord( _
         rw As Long) As Boolean
 
 
-    'Default = False
     IsValidGLRecord = False
 
 
     '-------------------------------------------------------
-    ' Column AB must be BS
+    ' AB must be BS
     '-------------------------------------------------------
-    If Trim(ws.Cells(rw, "AB").Value) <> "BS" Then
+    If UCase(Trim(CStr(ws.Cells(rw, "AB").Value))) <> "BS" Then
 
         Exit Function
 
@@ -296,9 +377,9 @@ Private Function IsValidGLRecord( _
 
 
     '-------------------------------------------------------
-    ' Column E must not be G35
+    ' E cannot be G35
     '-------------------------------------------------------
-    If Trim(ws.Cells(rw, "E").Value) = "G35" Then
+    If UCase(Trim(CStr(ws.Cells(rw, "E").Value))) = "G35" Then
 
         Exit Function
 
@@ -306,7 +387,7 @@ Private Function IsValidGLRecord( _
 
 
     '-------------------------------------------------------
-    ' Column Y amount must be greater than zero
+    ' Y amount must be greater than zero
     '-------------------------------------------------------
     If CDbl(Val(ws.Cells(rw, "Y").Value)) <= 0 Then
 
@@ -316,9 +397,9 @@ Private Function IsValidGLRecord( _
 
 
     '-------------------------------------------------------
-    ' Column H cannot be QAR
+    ' H cannot be QAR
     '-------------------------------------------------------
-    If UCase(Trim(ws.Cells(rw, "H").Value)) = "QAR" Then
+    If UCase(Trim(CStr(ws.Cells(rw, "H").Value))) = "QAR" Then
 
         Exit Function
 
@@ -326,9 +407,9 @@ Private Function IsValidGLRecord( _
 
 
     '-------------------------------------------------------
-    ' Column I cannot be QAR
+    ' I cannot be QAR
     '-------------------------------------------------------
-    If UCase(Trim(ws.Cells(rw, "I").Value)) = "QAR" Then
+    If UCase(Trim(CStr(ws.Cells(rw, "I").Value))) = "QAR" Then
 
         Exit Function
 
@@ -352,14 +433,13 @@ Private Function IsValidDealRecord( _
         rw As Long) As Boolean
 
 
-    'Default = False
     IsValidDealRecord = False
 
 
     '-------------------------------------------------------
-    ' Column F must not be G35
+    ' F cannot be G35
     '-------------------------------------------------------
-    If Trim(ws.Cells(rw, "F").Value) = "G35" Then
+    If UCase(Trim(CStr(ws.Cells(rw, "F").Value))) = "G35" Then
 
         Exit Function
 
@@ -367,7 +447,7 @@ Private Function IsValidDealRecord( _
 
 
     '-------------------------------------------------------
-    ' Column W amount must be greater than zero
+    ' W amount must be greater than zero
     '-------------------------------------------------------
     If CDbl(Val(ws.Cells(rw, "W").Value)) <= 0 Then
 
@@ -377,9 +457,9 @@ Private Function IsValidDealRecord( _
 
 
     '-------------------------------------------------------
-    ' Column S cannot be QAR
+    ' S cannot be QAR
     '-------------------------------------------------------
-    If UCase(Trim(ws.Cells(rw, "S").Value)) = "QAR" Then
+    If UCase(Trim(CStr(ws.Cells(rw, "S").Value))) = "QAR" Then
 
         Exit Function
 
@@ -387,9 +467,9 @@ Private Function IsValidDealRecord( _
 
 
     '-------------------------------------------------------
-    ' Column Z must be BS
+    ' Z must be BS
     '-------------------------------------------------------
-    If Trim(ws.Cells(rw, "Z").Value) <> "BS" Then
+    If UCase(Trim(CStr(ws.Cells(rw, "Z").Value))) <> "BS" Then
 
         Exit Function
 
@@ -397,18 +477,15 @@ Private Function IsValidDealRecord( _
 
 
     '-------------------------------------------------------
-    ' Column G cannot be QAR
+    ' G cannot be QAR
     '-------------------------------------------------------
-    If UCase(Trim(ws.Cells(rw, "G").Value)) = "QAR" Then
+    If UCase(Trim(CStr(ws.Cells(rw, "G").Value))) = "QAR" Then
 
         Exit Function
 
     End If
 
 
-    '-------------------------------------------------------
-    ' Valid Deal record
-    '-------------------------------------------------------
     IsValidDealRecord = True
 
 
@@ -416,7 +493,7 @@ End Function
 
 
 '===========================================================
-' FIND MATCHING DEAL
+' FIND MATCHING DEALS
 '===========================================================
 Private Function FindMatchingDeals( _
         wsDeals As Worksheet, _
@@ -430,34 +507,23 @@ Private Function FindMatchingDeals( _
     Dim dealAmount As Double
 
 
-    '-------------------------------------------------------
-    ' Search Deals sheet
-    '-------------------------------------------------------
     For r = 2 To lastRow
 
 
         If IsValidDealRecord(wsDeals, r) Then
 
 
-            '-----------------------------------------------
-            ' Deal amount is Column W
-            '-----------------------------------------------
-            dealAmount = CDbl(Val(wsDeals.Cells(r, "W").Value))
+            dealAmount = CDbl( _
+                Val(wsDeals.Cells(r, "W").Value) _
+            )
 
 
-            '-----------------------------------------------
-            ' Match amount up to 2 decimal places
-            '-----------------------------------------------
             If Round(dealAmount, 2) = _
                Round(targetAmount, 2) Then
 
-
                 matches.Add r
 
-
-                'Only first matching deal is required
                 Exit For
-
 
             End If
 
@@ -474,7 +540,7 @@ End Function
 
 
 '===========================================================
-' POPULATE OUTPUT ROW
+' POPULATE REPORT ROW
 '===========================================================
 Private Sub PopulateReportRow( _
         wsGL As Worksheet, _
@@ -482,7 +548,8 @@ Private Sub PopulateReportRow( _
         glRow As Long, _
         matches As Collection, _
         wsOut As Worksheet, _
-        outRow As Long)
+        outRow As Long, _
+        serialNumber As Long)
 
 
     Dim dealRow As Long
@@ -490,19 +557,15 @@ Private Sub PopulateReportRow( _
 
 
     '-------------------------------------------------------
-    ' Get first matching Deal row
+    ' Location from GL H
     '-------------------------------------------------------
-    dealRow = matches(1)
-
-
-    '-------------------------------------------------------
-    ' Location code from GL Column H
-    '-------------------------------------------------------
-    locationCode = Trim(wsGL.Cells(glRow, "H").Value)
+    locationCode = Trim( _
+        CStr(wsGL.Cells(glRow, "H").Value) _
+    )
 
 
     '=======================================================
-    ' POPULATE DATA
+    ' GL DATA
     '=======================================================
     With wsOut
 
@@ -510,13 +573,12 @@ Private Sub PopulateReportRow( _
         '---------------------------------------------------
         ' B = Serial Number
         '---------------------------------------------------
-        .Cells(outRow, "B").Value = _
-            outRow - START_ROW + 1
+        .Cells(outRow, "B").Value = serialNumber
 
 
         '---------------------------------------------------
         ' C = Client
-        ' GL Column G
+        ' GL G
         '---------------------------------------------------
         .Cells(outRow, "C").Value = _
             wsGL.Cells(glRow, "G").Value
@@ -536,55 +598,112 @@ Private Sub PopulateReportRow( _
             GetRegion(locationCode)
 
 
-        '---------------------------------------------------
-        ' F = Transaction ID
-        ' Deals Column K
-        '---------------------------------------------------
-        .Cells(outRow, "F").Value = _
-            wsDeals.Cells(dealRow, "K").Value
-
-
-        '---------------------------------------------------
-        ' G = Type of Facility
-        ' Deals Column G
-        '---------------------------------------------------
-        .Cells(outRow, "G").Value = _
-            wsDeals.Cells(dealRow, "G").Value
-
-
-        '---------------------------------------------------
-        ' H = Currency
-        ' Deals Column L
-        '---------------------------------------------------
-        .Cells(outRow, "H").Value = _
-            wsDeals.Cells(dealRow, "L").Value
-
-
-        '---------------------------------------------------
-        ' I = Value Date
-        ' Deals Column M
-        '---------------------------------------------------
-        .Cells(outRow, "I").Value = _
-            wsDeals.Cells(dealRow, "M").Value
-
-
-        '---------------------------------------------------
-        ' J = Maturity Date
-        '---------------------------------------------------
-        .Cells(outRow, "J").Value = _
-            wsDeals.Cells(dealRow, "M").Value - _
-            wsDeals.Cells(dealRow, "L").Value
-
-
-        '---------------------------------------------------
-        ' L = Interest Rate
-        ' Deals Column Q
-        '---------------------------------------------------
-        .Cells(outRow, "L").Value = _
-            wsDeals.Cells(dealRow, "Q").Value
-
-
     End With
+
+
+    '=======================================================
+    ' DEAL DATA
+    '=======================================================
+    If matches.Count > 0 Then
+
+
+        '---------------------------------------------------
+        ' Matching Deal found
+        '---------------------------------------------------
+        dealRow = matches(1)
+
+
+        With wsOut
+
+
+            ' F = Transaction ID
+            .Cells(outRow, "F").Value = _
+                wsDeals.Cells(dealRow, "K").Value
+
+
+            ' G = Type of Facility
+            .Cells(outRow, "G").Value = _
+                wsDeals.Cells(dealRow, "G").Value
+
+
+            ' H = Currency
+            .Cells(outRow, "H").Value = _
+                wsDeals.Cells(dealRow, "L").Value
+
+
+            ' I = Value Date
+            .Cells(outRow, "I").Value = _
+                wsDeals.Cells(dealRow, "M").Value
+
+
+            ' J = Maturity Date / calculation
+            .Cells(outRow, "J").Value = _
+                wsDeals.Cells(dealRow, "M").Value - _
+                wsDeals.Cells(dealRow, "L").Value
+
+
+            ' L = Interest Rate
+            .Cells(outRow, "L").Value = _
+                wsDeals.Cells(dealRow, "Q").Value
+
+
+        End With
+
+
+    Else
+
+
+        '===================================================
+        ' NO DEAL MATCH
+        '
+        ' GL data is still populated.
+        '
+        ' All fields which normally come from Deals
+        ' are set to 0.
+        '===================================================
+        With wsOut
+
+
+            ' F = Transaction ID
+            .Cells(outRow, "F").Value = 0
+
+
+            ' G = Type of Facility
+            .Cells(outRow, "G").Value = 0
+
+
+            ' H = Currency
+            .Cells(outRow, "H").Value = 0
+
+
+            ' I = Value Date
+            .Cells(outRow, "I").Value = 0
+
+
+            ' J = Maturity Date
+            .Cells(outRow, "J").Value = 0
+
+
+            ' K = Maturity Remaining
+            .Cells(outRow, "K").Value = 0
+
+
+            ' L = Interest Rate
+            .Cells(outRow, "L").Value = 0
+
+
+            ' M = Principal
+            .Cells(outRow, "M").Value = 0
+
+
+            ' N = USD Equivalent
+            .Cells(outRow, "N").Value = 0
+
+
+        End With
+
+
+    End If
 
 
 End Sub
@@ -600,30 +719,37 @@ Private Function GetCountry(locCode As String) As String
 
 
         Case "IN"
+
             GetCountry = "INDIA"
 
 
         Case "SG"
+
             GetCountry = "SINGAPORE"
 
 
         Case "AE"
+
             GetCountry = "UNITED ARAB EMIRATES"
 
 
         Case "FR"
+
             GetCountry = "FRANCE"
 
 
         Case "US"
+
             GetCountry = "UNITED STATES"
 
 
         Case "QA", "QAR"
+
             GetCountry = "QATAR"
 
 
         Case Else
+
             GetCountry = locCode
 
 
@@ -683,7 +809,7 @@ Private Function GetRegion(locCode As String) As String
 
 
         '---------------------------------------------------
-        ' Other
+        ' OTHER
         '---------------------------------------------------
         Case Else
 
