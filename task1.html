@@ -1,2 +1,3 @@
 =IF(OR(C7="",C7="QA",C7="Total"),"",SUMPRODUCT(('Funding by geography'!$C$7:$C$1000=C7)*('Funding by geography'!$C$7:$C$1000<>"QA")*('Funding by geography'!$C$7:$C$1000<>"Total")*N('Funding by geography'!$D$7:$L$1000)))
 =IF(OR(C7="",C7="QA",C7="Total"),"",SUMPRODUCT((FundingTable[Country]=C7)*(FundingTable[Country]<>"QA")*(FundingTable[Country]<>"Total")*N(FundingTable[[Sovereigns]:[Total]])))
+=IF(OR(C7="QA",C7="Total",C7=""),"",SUMPRODUCT(('Funding by geography'!$C$7:$C$1000=C7)*N('Funding by geography'!$D$7:$L$1000)))
