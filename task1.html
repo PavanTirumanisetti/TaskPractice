@@ -1,5 +1,1229 @@
-Hi Team,
-Yakeen was initially developed as a temporary Shadow IT tactical solution, so a Bitbucket repository was not created.
-However, since the target solution has been rejected or delayed, Yakeen remains in operation and requires ongoing maintenance.
-Could you please create a Bitbucket repository for Yakeen to support proper code management and maintenance?
-Thanks,
+Option Explicit
+
+'=========================================================
+' Public entry points
+'=========================================================
+Public Sub Populate_1NR_Depo()
+    PopulateReport BuildConfig_1NR_Depo()
+End Sub
+
+Public Sub Populate_1NR_Depo_QAR()
+    PopulateReport BuildConfig_1NR_Depo_QAR()
+End Sub
+
+Public Sub Populate_2NR_Lend()
+    PopulateReport BuildConfig_2NR_Lend()
+End Sub
+
+Public Sub Populate_1R_Depo()
+    PopulateReport BuildConfig_1R_Depo()
+End Sub
+
+Public Sub Populate_1R_Depo_QAR()
+    PopulateReport BuildConfig_1R_Depo_QAR()
+End Sub
+
+Public Sub Populate_2R_Lend()
+    PopulateReport BuildConfig_2R_Lend()
+End Sub
+
+Public Sub Populate_FI_Bank_Borrow()
+    PopulateReport BuildConfig_FI_Bank_Borrow()
+End Sub
+
+Public Sub Populate_FI_Bank_Borrow_QAR()
+    PopulateReport BuildConfig_FI_Bank_Borrow_QAR()
+End Sub
+
+Public Sub Populate_FI_Bank_Lend()
+    PopulateReport BuildConfig_FI_Bank_Lend()
+End Sub
+
+'---------------------------------------------------------
+' Run every configured report in one go, in order.
+'---------------------------------------------------------
+Public Sub Populate_AllReports()
+    Populate_1NR_Depo
+    Populate_1NR_Depo_QAR
+    Populate_2NR_Lend
+    Populate_1R_Depo
+    Populate_1R_Depo_QAR
+    Populate_2R_Lend
+    Populate_FI_Bank_Borrow
+    Populate_FI_Bank_Borrow_QAR
+    Populate_FI_Bank_Lend
+End Sub
+
+'=========================================================
+' Report configs
+' Add a new BuildConfig_... + Public Sub to extend further.
+'
+' Config keys:
+'   ReportName            - label used in messages
+'   OutputSheetNames       - array of acceptable sheet names
+'   FacilityType           - text written to "Type of facility"
+'   AllowedCC               - array of allowed CC codes
+'   ExcludeQALocation       - True => drop location QA (mutually excl. with OnlyQALocation)
+'   OnlyQALocation          - True => keep ONLY location QA
+'   ExcludeQARCurrency      - True => drop currency QAR (mutually excl. with OnlyQARCurrency)
+'   OnlyQARCurrency         - True => keep ONLY currency QAR
+'   RequirePositiveExchLB    - True => require ExchLB > 0 (Depo/Borrow); False => require < 0 (Lend)
+'   HasCurrencyColumn       - False for the "...QAR" variants, whose output sheets
+'                              have no Currency column (columns shift left one slot)
+'=========================================================
+Private Function BuildConfig_1NR_Depo() As Object
+    Dim cfg As Object
+    Set cfg = CreateObject("Scripting.Dictionary")
+
+    cfg("ReportName") = "1-NR-Depo"
+    cfg("OutputSheetNames") = Array("1-NR-Depo")
+    cfg("FacilityType") = "Call Deposit"
+    cfg("AllowedCC") = Array("300", "361", "364", "380", "500")
+
+    cfg("ExcludeQALocation") = True
+    cfg("OnlyQALocation") = False
+    cfg("ExcludeQARCurrency") = True
+    cfg("OnlyQARCurrency") = False
+    cfg("RequirePositiveExchLB") = True
+    cfg("HasCurrencyColumn") = True
+
+    Set BuildConfig_1NR_Depo = cfg
+End Function
+
+Private Function BuildConfig_1NR_Depo_QAR() As Object
+    Dim cfg As Object
+    Set cfg = CloneConfig(BuildConfig_1NR_Depo())
+
+    cfg("ReportName") = "1-NR-Depo QAR"
+    ' Corrected sheet name: "1-NR-Depo -QAR" (space before the hyphen).
+    ' Older spacing kept as fallback in case the tab name varies.
+    cfg("OutputSheetNames") = Array("1-NR-Depo -QAR", "1-NR-Depo QAR", "1-NR-Depo-QAR")
+
+    ' Only QAR currency now (location rule unchanged - still excludes QA location)
+    cfg("ExcludeQARCurrency") = False
+    cfg("OnlyQARCurrency") = True
+
+    ' Output sheet has no Currency column - everything after "Type of facility"
+    ' shifts one column left.
+    cfg("HasCurrencyColumn") = False
+
+    Set BuildConfig_1NR_Depo_QAR = cfg
+End Function
+
+Private Function BuildConfig_2NR_Lend() As Object
+    Dim cfg As Object
+    Set cfg = CloneConfig(BuildConfig_1NR_Depo())
+
+    cfg("ReportName") = "2-NR-Lend"
+    cfg("OutputSheetNames") = Array("2-NR-Lend")
+    cfg("RequirePositiveExchLB") = False   ' exchLB < 0
+
+    ' TODO: confirm the exact "Type of facility" label for 2-NR-Lend -
+    ' currently kept as "Call Deposit" (inherited from 1-NR-Depo).
+
+    Set BuildConfig_2NR_Lend = cfg
+End Function
+
+Private Function BuildConfig_1R_Depo() As Object
+    Dim cfg As Object
+    Set cfg = CloneConfig(BuildConfig_1NR_Depo())
+
+    cfg("ReportName") = "1-R-Depo"
+    cfg("OutputSheetNames") = Array("1-R-Depo")
+
+    ' Only QA location now (currency rule unchanged - still excludes QAR currency)
+    cfg("ExcludeQALocation") = False
+    cfg("OnlyQALocation") = True
+
+    Set BuildConfig_1R_Depo = cfg
+End Function
+
+Private Function BuildConfig_1R_Depo_QAR() As Object
+    Dim cfg As Object
+    Set cfg = CloneConfig(BuildConfig_1R_Depo())
+
+    cfg("ReportName") = "1-R-Depo QAR"
+    ' Corrected sheet name: "1-R-Depo -QAR" (space before the hyphen).
+    cfg("OutputSheetNames") = Array("1-R-Depo -QAR", "1-R-Depo QAR", "1-R-Depo-QAR")
+
+    cfg("ExcludeQARCurrency") = False
+    cfg("OnlyQARCurrency") = True
+    cfg("HasCurrencyColumn") = False
+
+    Set BuildConfig_1R_Depo_QAR = cfg
+End Function
+
+Private Function BuildConfig_2R_Lend() As Object
+    Dim cfg As Object
+    Set cfg = CloneConfig(BuildConfig_1R_Depo())
+
+    cfg("ReportName") = "2-R-Lend"
+    cfg("OutputSheetNames") = Array("2-R-Lend")
+    cfg("RequirePositiveExchLB") = False   ' exchLB < 0
+
+    ' TODO: confirm the exact "Type of facility" label for 2-R-Lend.
+
+    Set BuildConfig_2R_Lend = cfg
+End Function
+
+Private Function BuildConfig_FI_Bank_Borrow() As Object
+    Dim cfg As Object
+    Set cfg = CreateObject("Scripting.Dictionary")
+
+    cfg("ReportName") = "FI-Bank-Borrow"
+    cfg("OutputSheetNames") = Array("FI-Bank-Borrow")
+    cfg("FacilityType") = "TREASURY BORROWING > 24H"
+    cfg("AllowedCC") = Array("100", "109")
+
+    cfg("ExcludeQALocation") = True
+    cfg("OnlyQALocation") = False
+    cfg("ExcludeQARCurrency") = True
+    cfg("OnlyQARCurrency") = False
+    cfg("RequirePositiveExchLB") = True
+    cfg("HasCurrencyColumn") = True
+
+    Set BuildConfig_FI_Bank_Borrow = cfg
+End Function
+
+Private Function BuildConfig_FI_Bank_Borrow_QAR() As Object
+    Dim cfg As Object
+    Set cfg = CloneConfig(BuildConfig_FI_Bank_Borrow())
+
+    cfg("ReportName") = "FI-Bank-Borrow QAR"
+    ' Corrected sheet name pattern: "FI-Bank-Borrow -QAR" (space before the hyphen).
+    cfg("OutputSheetNames") = Array("FI-Bank-Borrow -QAR", "FI-Bank-Borrow QAR", "FI-Bank-Borrow-QAR")
+
+    cfg("ExcludeQARCurrency") = False
+    cfg("OnlyQARCurrency") = True
+    cfg("HasCurrencyColumn") = False
+
+    Set BuildConfig_FI_Bank_Borrow_QAR = cfg
+End Function
+
+Private Function BuildConfig_FI_Bank_Lend() As Object
+    Dim cfg As Object
+    Set cfg = CloneConfig(BuildConfig_FI_Bank_Borrow())
+
+    cfg("ReportName") = "FI-Bank-Lend"
+    cfg("OutputSheetNames") = Array("FI-Bank-Lend")
+    cfg("RequirePositiveExchLB") = False   ' exchLB < 0
+
+    ' TODO: confirm the exact "Type of facility" label for FI-Bank-Lend -
+    ' currently kept as "TREASURY BORROWING > 24H" (inherited from FI-Bank-Borrow).
+
+    Set BuildConfig_FI_Bank_Lend = cfg
+End Function
+
+Private Function CloneConfig(ByVal source As Object) As Object
+    Dim cfg As Object
+    Dim k As Variant
+
+    Set cfg = CreateObject("Scripting.Dictionary")
+
+    For Each k In source.Keys
+        cfg(k) = source(k)
+    Next k
+
+    Set CloneConfig = cfg
+End Function
+
+'=========================================================
+' Engine
+'
+' PERFORMANCE NOTE: earlier versions wrote each output row to the
+' sheet as it was found - a FindTotalRow() full-column rescan AND
+' a clipboard Rows.Copy/PasteSpecial call for every single row.
+' This version collects every output row into memory first (no
+' sheet I/O while matching), then does the sheet work once: one
+' row-insert if extra rows are needed, one formatting copy for
+' that whole new block, one bulk array write of all values, and
+' one bulk NumberFormat pass. See WriteResultsToSheet.
+'=========================================================
+Private Sub PopulateReport(ByVal cfg As Object)
+
+    Dim wb As Workbook
+    Dim wsGL As Worksheet
+    Dim wsDeals As Worksheet
+    Dim wsOut As Worksheet
+    Dim wsCountry As Worksheet
+    Dim wsDates As Worksheet
+
+    Dim countryMap As Object
+    Dim regionMap As Object
+    Dim filteredDealsByKey As Object
+    Dim usedDeals As Object
+
+    Dim referenceDate As Variant
+
+    Dim results As Collection
+
+    Dim lastGLRow As Long
+    Dim serialNo As Long
+    Dim r As Long
+
+    Dim glAmount As Double
+    Dim glLocation As String
+    Dim glCurrency As String
+    Dim glOrdinal As String
+    Dim glClient As String
+    Dim matchKey As String
+
+    Dim matchedDeals As Collection
+    Dim dealItem As Object
+    Dim countryValue As String
+    Dim regionValue As String
+
+    Application.ScreenUpdating = False
+    Application.EnableEvents = False
+    Application.Calculation = xlCalculationManual
+
+    On Error GoTo ErrHandler
+
+    Set wb = ThisWorkbook
+    Set wsGL = GetSheetByPossibleNames(wb, Array("GL"))
+    Set wsDeals = GetSheetByPossibleNames(wb, Array("Deals"))
+    Set wsOut = GetSheetByPossibleNames(wb, cfg("OutputSheetNames"))
+    Set wsCountry = GetOptionalSheetByPossibleNames(wb, Array("Country"))
+    Set wsDates = GetOptionalSheetByPossibleNames(wb, Array("Dates"))
+
+    If wsGL Is Nothing Then Err.Raise vbObjectError + 100, , "GL sheet not found."
+    If wsDeals Is Nothing Then Err.Raise vbObjectError + 101, , "Deals sheet not found."
+    If wsOut Is Nothing Then Err.Raise vbObjectError + 102, , cfg("ReportName") & " output sheet not found."
+
+    If Not wsDates Is Nothing Then
+        referenceDate = wsDates.Range("B2").value
+    Else
+        referenceDate = 0
+    End If
+
+    Set countryMap = CreateObject("Scripting.Dictionary")
+    Set regionMap = CreateObject("Scripting.Dictionary")
+    BuildCountryRegionMaps wsCountry, countryMap, regionMap
+
+    Set usedDeals = CreateObject("Scripting.Dictionary")
+    Set filteredDealsByKey = BuildFilteredDealsIndex(wsDeals, cfg)
+
+    PrepareOutputArea wsOut, cfg
+
+    Set results = New Collection
+    serialNo = 1
+    lastGLRow = LastUsedRow(wsGL, "A")
+
+    For r = 2 To lastGLRow
+
+        If IsQualifyingGLRow(wsGL, r, cfg) Then
+
+            glAmount = Abs(ToNumber(wsGL.Cells(r, "Y").value))
+            glLocation = NormalizeLocation(wsGL.Cells(r, "H").value)
+            glCurrency = Trim$(CStr(wsGL.Cells(r, "I").value))
+            glOrdinal = Trim$(CStr(wsGL.Cells(r, "E").value))
+            glClient = Trim$(CStr(wsGL.Cells(r, "G").value))
+
+            countryValue = GetMappedValue(countryMap, glLocation, "")
+            regionValue = GetMappedValue(regionMap, glLocation, "")
+
+            matchKey = BuildMatchKey(glCurrency, glLocation, glOrdinal)
+
+            Set matchedDeals = FindMatchingDeals(filteredDealsByKey, usedDeals, matchKey, glAmount)
+
+            If matchedDeals.Count = 0 Then
+
+                ' No matching Deals record(s): populate from GL only,
+                ' zero out everything that would normally come from Deals.
+                results.Add BuildRowValues( _
+                    cfg, serialNo, glClient, countryValue, regionValue, _
+                    0, cfg("FacilityType"), glCurrency, _
+                    0, 0, 0, 0, 0, 0)
+
+                serialNo = serialNo + 1
+
+            Else
+
+                For Each dealItem In matchedDeals
+
+                    results.Add BuildRowValues( _
+                        cfg, serialNo, glClient, countryValue, regionValue, _
+                        dealItem("TransactionID"), cfg("FacilityType"), dealItem("Currency"), _
+                        dealItem("ValueDate"), dealItem("MaturityDate"), _
+                        CalculateMaturityRemaining(dealItem("MaturityDate"), referenceDate), _
+                        dealItem("InterestRate"), dealItem("Principal"), dealItem("USDEquivalent"))
+
+                    MarkDealAsUsed usedDeals, dealItem("RowNo")
+
+                    serialNo = serialNo + 1
+
+                Next dealItem
+
+            End If
+
+        End If
+
+    Next r
+
+    WriteResultsToSheet wsOut, cfg, results
+
+    Application.Calculation = xlCalculationAutomatic
+    Application.EnableEvents = True
+    Application.ScreenUpdating = True
+
+    MsgBox cfg("ReportName") & " population completed successfully.", vbInformation
+    Exit Sub
+
+ErrHandler:
+    Application.Calculation = xlCalculationAutomatic
+    Application.EnableEvents = True
+    Application.ScreenUpdating = True
+
+    MsgBox cfg("ReportName") & " macro failed: " & Err.Description, vbCritical
+
+End Sub
+
+'=========================================================
+' Filter logic
+' GL columns:    AB GL Type | E Ordinal | Y Exchange LB
+'                H Location | I Currency | J CC
+' Deals columns: F Ordinal  | W Exchange LB | S Location
+'                Z GL Type  | G Currency | H CC
+'                J / P Principal source | W USD Equiv. source (W / 3.64)
+'=========================================================
+Private Function IsQualifyingGLRow(ByVal ws As Worksheet, ByVal rowNo As Long, ByVal cfg As Object) As Boolean
+
+    Dim glType As String
+    Dim ordinal As String
+    Dim exchLB As Double
+    Dim locationValue As String
+    Dim currencyValue As String
+    Dim ccValue As String
+
+    glType = Trim$(CStr(ws.Cells(rowNo, "AB").value))
+    ordinal = Trim$(CStr(ws.Cells(rowNo, "E").value))
+    exchLB = ToNumber(ws.Cells(rowNo, "Y").value)
+    locationValue = NormalizeLocation(ws.Cells(rowNo, "H").value)
+    currencyValue = Trim$(CStr(ws.Cells(rowNo, "I").value))
+    ccValue = NormalizeCC(ws.Cells(rowNo, "J").value)
+
+    IsQualifyingGLRow = _
+        UCase$(glType) = "BS" _
+        And UCase$(ordinal) <> "G35" _
+        And PassesExchLBSign(exchLB, cfg) _
+        And PassesLocationFilter(locationValue, cfg) _
+        And PassesCurrencyFilter(currencyValue, cfg) _
+        And IsInCCList(ccValue, cfg("AllowedCC"))
+
+End Function
+
+Private Function IsQualifyingDealRow(ByVal ws As Worksheet, ByVal rowNo As Long, ByVal cfg As Object) As Boolean
+
+    Dim ordinal As String
+    Dim exchLB As Double
+    Dim locationValue As String
+    Dim glType As String
+    Dim currencyValue As String
+    Dim ccValue As String
+
+    ordinal = Trim$(CStr(ws.Cells(rowNo, "F").value))
+    exchLB = ToNumber(ws.Cells(rowNo, "W").value)
+    locationValue = NormalizeLocation(ws.Cells(rowNo, "S").value)
+    glType = Trim$(CStr(ws.Cells(rowNo, "Z").value))
+    currencyValue = Trim$(CStr(ws.Cells(rowNo, "G").value))
+    ccValue = NormalizeCC(ws.Cells(rowNo, "H").value)
+
+    IsQualifyingDealRow = _
+        UCase$(ordinal) <> "G35" _
+        And PassesExchLBSign(exchLB, cfg) _
+        And PassesLocationFilter(locationValue, cfg) _
+        And UCase$(glType) = "BS" _
+        And PassesCurrencyFilter(currencyValue, cfg) _
+        And IsInCCList(ccValue, cfg("AllowedCC"))
+
+End Function
+
+Private Function PassesLocationFilter(ByVal locationValue As String, ByVal cfg As Object) As Boolean
+    If cfg("OnlyQALocation") Then
+        PassesLocationFilter = (UCase$(locationValue) = "QA")
+    ElseIf cfg("ExcludeQALocation") Then
+        PassesLocationFilter = (UCase$(locationValue) <> "QA")
+    Else
+        PassesLocationFilter = True
+    End If
+End Function
+
+Private Function PassesCurrencyFilter(ByVal currencyValue As String, ByVal cfg As Object) As Boolean
+    If cfg("OnlyQARCurrency") Then
+        PassesCurrencyFilter = (UCase$(currencyValue) = "QAR")
+    ElseIf cfg("ExcludeQARCurrency") Then
+        PassesCurrencyFilter = (UCase$(currencyValue) <> "QAR")
+    Else
+        PassesCurrencyFilter = True
+    End If
+End Function
+
+Private Function PassesExchLBSign(ByVal exchLB As Double, ByVal cfg As Object) As Boolean
+    If cfg("RequirePositiveExchLB") Then
+        PassesExchLBSign = (exchLB > 0)
+    Else
+        PassesExchLBSign = (exchLB < 0)
+    End If
+End Function
+
+Private Function IsInCCList(ByVal ccValue As String, ByVal allowedCC As Variant) As Boolean
+
+    Dim i As Long
+
+    For i = LBound(allowedCC) To UBound(allowedCC)
+        If ccValue = NormalizeCC(allowedCC(i)) Then
+            IsInCCList = True
+            Exit Function
+        End If
+    Next i
+
+    IsInCCList = False
+
+End Function
+
+' Strips whitespace and any trailing ".0" style decimals so that
+' a CC stored as text "300", as a number 300, or as 300.0 all match.
+Private Function NormalizeCC(ByVal value As Variant) As String
+
+    Dim s As String
+
+    If IsNumeric(value) Then
+        s = CStr(CLng(CDbl(value)))
+    Else
+        s = Trim$(CStr(value))
+    End If
+
+    NormalizeCC = s
+
+End Function
+
+'=========================================================
+' Build filtered Deals index
+' Expected Deals columns:
+' F Ordinal
+' G Currency
+' H CC
+' J / P Principal source (Principal = J / P)
+' K Transaction ID
+' L Value Date
+' M Expiry Date
+' N Maturity Date
+' Q Interest Rate
+' S Location
+' W Exchange LB (also source for USD Equiv. = W / 3.64)
+' Z GL Type
+'=========================================================
+Private Function BuildFilteredDealsIndex(ByVal wsDeals As Worksheet, ByVal cfg As Object) As Object
+
+    Dim dict As Object
+    Dim deal As Object
+    Dim lastRow As Long
+    Dim r As Long
+    Dim dealKey As String
+    Dim dealCurrency As String
+    Dim dealLocation As String
+    Dim dealOrdinal As String
+
+    Set dict = CreateObject("Scripting.Dictionary")
+    lastRow = LastUsedRow(wsDeals, "A")
+
+    For r = 2 To lastRow
+
+        If IsQualifyingDealRow(wsDeals, r, cfg) Then
+
+            dealCurrency = Trim$(CStr(wsDeals.Cells(r, "G").value))
+            dealLocation = NormalizeLocation(wsDeals.Cells(r, "S").value)
+            dealOrdinal = Trim$(CStr(wsDeals.Cells(r, "F").value))
+
+            dealKey = BuildMatchKey(dealCurrency, dealLocation, dealOrdinal)
+
+            Set deal = CreateObject("Scripting.Dictionary")
+            deal("RowNo") = r
+            deal("Amount") = Abs(ToNumber(wsDeals.Cells(r, "W").value))
+            deal("TransactionID") = wsDeals.Cells(r, "K").value
+            deal("Currency") = dealCurrency
+            deal("ValueDate") = wsDeals.Cells(r, "L").value
+            deal("MaturityDate") = wsDeals.Cells(r, "N").value
+            deal("InterestRate") = wsDeals.Cells(r, "Q").value
+            deal("Principal") = SafeDivide(ToNumber(wsDeals.Cells(r, "J").value), ToNumber(wsDeals.Cells(r, "P").value))
+            deal("USDEquivalent") = ToNumber(wsDeals.Cells(r, "W").value) / 3.64
+
+            If Not dict.Exists(dealKey) Then
+                Set dict(dealKey) = New Collection
+            End If
+
+            dict(dealKey).Add deal
+
+        End If
+
+    Next r
+
+    Set BuildFilteredDealsIndex = dict
+
+End Function
+
+Private Function SafeDivide(ByVal numerator As Double, ByVal denominator As Double) As Double
+    If denominator = 0 Then
+        SafeDivide = 0
+    Else
+        SafeDivide = numerator / denominator
+    End If
+End Function
+
+'=========================================================
+' Amount matching
+' First tries exact single-match.
+' Then tries one-to-many subset match within same currency/location/ordinal bucket.
+'=========================================================
+Private Function FindMatchingDeals( _
+    ByVal dealsByKey As Object, _
+    ByVal usedDeals As Object, _
+    ByVal matchKey As String, _
+    ByVal targetAmount As Double _
+) As Collection
+
+    Dim result As New Collection
+    Dim candidateDeals As Collection
+    Dim availableDeals As New Collection
+    Dim deal As Object
+    Dim i As Long
+
+    If targetAmount <= 0 Then
+        Set FindMatchingDeals = result
+        Exit Function
+    End If
+
+    If Not dealsByKey.Exists(matchKey) Then
+        Set FindMatchingDeals = result
+        Exit Function
+    End If
+
+    Set candidateDeals = dealsByKey(matchKey)
+
+    For i = 1 To candidateDeals.Count
+        Set deal = candidateDeals(i)
+
+        If Not usedDeals.Exists(CStr(deal("RowNo"))) Then
+            availableDeals.Add deal
+        End If
+    Next i
+
+    'Single exact amount match
+    For i = 1 To availableDeals.Count
+        Set deal = availableDeals(i)
+
+        If AmountsEqual(ToNumber(deal("Amount")), targetAmount) Then
+            result.Add deal
+            Set FindMatchingDeals = result
+            Exit Function
+        End If
+    Next i
+
+    'One-to-many match
+    If availableDeals.Count > 0 Then
+        Set result = FindSubsetByAmount(availableDeals, targetAmount)
+    End If
+
+    Set FindMatchingDeals = result
+
+End Function
+
+Private Function FindSubsetByAmount(ByVal deals As Collection, ByVal targetAmount As Double) As Collection
+
+    Const MAX_CANDIDATES As Long = 40        ' cap on how many candidate deals feed the search
+    Const MAX_COMBINATION_SIZE As Long = 4   ' cap on how many deals can be combined into one GL match
+
+    Dim sortedDeals As Collection
+    Dim result As New Collection
+
+    Set sortedDeals = SortDealsByAmountDesc(deals)
+
+    If sortedDeals.Count > MAX_CANDIDATES Then
+        Set sortedDeals = FirstNDeals(sortedDeals, MAX_CANDIDATES)
+    End If
+
+    If TryCombination(sortedDeals, targetAmount, 1, 0, 0, MAX_COMBINATION_SIZE, result) Then
+        Set FindSubsetByAmount = result
+    Else
+        Set FindSubsetByAmount = New Collection
+    End If
+
+End Function
+
+' Depth-capped combination search - the successor to both the original
+' unbounded recursive backtracking (exponential, could hang on large deal
+' groups) and an intermediate DP-based subset-sum (polynomial per call, but
+' still expensive enough per GL row that a full multi-report run could add
+' up to a very long time).
+'
+' Capping the combination size (MAX_COMBINATION_SIZE) bounds the search to
+' at most SUM(C(n,1)..C(n,maxDepth)) node visits - a small, FIXED ceiling
+' regardless of how many candidate deals exist in a bucket. In practice a
+' GL balance being the sum of more than 3-4 separate deal tickets is very
+' unusual, so this does not meaningfully change which real matches are
+' found, but it guarantees the search can never run away.
+Private Function TryCombination( _
+    ByVal deals As Collection, _
+    ByVal targetAmount As Double, _
+    ByVal startIndex As Long, _
+    ByVal runningTotal As Double, _
+    ByVal depth As Long, _
+    ByVal maxDepth As Long, _
+    ByRef pickedDeals As Collection _
+) As Boolean
+
+    Dim i As Long
+    Dim deal As Object
+    Dim nextTotal As Double
+
+    If depth > 0 And AmountsEqual(runningTotal, targetAmount) Then
+        TryCombination = True
+        Exit Function
+    End If
+
+    If depth >= maxDepth Then
+        TryCombination = False
+        Exit Function
+    End If
+
+    For i = startIndex To deals.Count
+
+        Set deal = deals(i)
+        nextTotal = runningTotal + ToNumber(deal("Amount"))
+
+        If nextTotal <= targetAmount + 0.01 Then
+            pickedDeals.Add deal
+
+            If TryCombination(deals, targetAmount, i + 1, nextTotal, depth + 1, maxDepth, pickedDeals) Then
+                TryCombination = True
+                Exit Function
+            End If
+
+            pickedDeals.Remove pickedDeals.Count
+        End If
+
+    Next i
+
+    TryCombination = False
+
+End Function
+
+'=========================================================
+' Output handling
+' Full layout (HasCurrencyColumn = True):
+' B Serial no. | C Client | D Country | E Region | F Transaction ID
+' G Type of facility | H Currency | I Value Date | J Maturity Date
+' K Maturity Remaining | L Interest Rate | M Principal | N USD Equiv.
+'
+' No-currency layout (HasCurrencyColumn = False, "...QAR" sheets):
+' B Serial no. | C Client | D Country | E Region | F Transaction ID
+' G Type of facility | H Value Date | I Maturity Date
+' J Maturity Remaining | K Interest Rate | L Principal | M USD Equiv.
+'
+' BuildRowValues packs one output row into a 1-based Variant array in
+' the correct column order for the layout - used for the in-memory
+' results collection that WriteResultsToSheet later bulk-writes.
+'=========================================================
+Private Function BuildRowValues( _
+    ByVal cfg As Object, _
+    ByVal serialNo As Long, _
+    ByVal clientName As Variant, _
+    ByVal countryName As Variant, _
+    ByVal regionName As Variant, _
+    ByVal transactionId As Variant, _
+    ByVal facilityType As Variant, _
+    ByVal currencyCode As Variant, _
+    ByVal valueDate As Variant, _
+    ByVal maturityDate As Variant, _
+    ByVal maturityRemaining As Variant, _
+    ByVal interestRate As Variant, _
+    ByVal principalAmount As Variant, _
+    ByVal usdEquivalent As Variant _
+) As Variant
+
+    Dim arr() As Variant
+
+    If cfg("HasCurrencyColumn") Then
+        ReDim arr(1 To 13)
+        arr(1) = serialNo
+        arr(2) = clientName
+        arr(3) = countryName
+        arr(4) = regionName
+        arr(5) = transactionId
+        arr(6) = facilityType
+        arr(7) = currencyCode
+        arr(8) = valueDate
+        arr(9) = maturityDate
+        arr(10) = maturityRemaining
+        arr(11) = interestRate
+        arr(12) = principalAmount
+        arr(13) = usdEquivalent
+    Else
+        ReDim arr(1 To 12)
+        arr(1) = serialNo
+        arr(2) = clientName
+        arr(3) = countryName
+        arr(4) = regionName
+        arr(5) = transactionId
+        arr(6) = facilityType
+        arr(7) = valueDate
+        arr(8) = maturityDate
+        arr(9) = maturityRemaining
+        arr(10) = interestRate
+        arr(11) = principalAmount
+        arr(12) = usdEquivalent
+    End If
+
+    BuildRowValues = arr
+
+End Function
+
+Private Function LastOutputColumn(ByVal cfg As Object) As Long
+    If cfg("HasCurrencyColumn") Then
+        LastOutputColumn = 14 ' N
+    Else
+        LastOutputColumn = 13 ' M
+    End If
+End Function
+
+Private Sub PrepareOutputArea(ByVal wsOut As Worksheet, ByVal cfg As Object)
+
+    Dim totalRow As Long
+    Dim clearToRow As Long
+
+    totalRow = FindTotalRow(wsOut)
+
+    If totalRow = 0 Then
+        totalRow = LastUsedRow(wsOut, "B") + 1
+        wsOut.Cells(totalRow, "B").value = "Total"
+    End If
+
+    clearToRow = totalRow - 1
+
+    If clearToRow >= 7 Then
+        wsOut.Range(wsOut.Cells(7, 2), wsOut.Cells(clearToRow, LastOutputColumn(cfg))).ClearContents
+    End If
+
+End Sub
+
+' Writes every collected output row to the sheet in bulk:
+'  1) insert extra rows above the Total row only if more are needed
+'     than currently exist (one Insert call, not one per row)
+'  2) copy formatting for that new block in a single operation
+'  3) write every row's values with one array assignment
+'  4) set number formats for the whole block in one pass
+'  5) refresh the Total row formulas
+Private Sub WriteResultsToSheet(ByVal wsOut As Worksheet, ByVal cfg As Object, ByVal results As Collection)
+
+    Dim totalRow As Long
+    Dim neededRows As Long
+    Dim existingDataRows As Long
+    Dim extraRowsNeeded As Long
+    Dim lastCol As Long
+    Dim numCols As Long
+    Dim outputArr() As Variant
+    Dim i As Long
+    Dim j As Long
+    Dim rowVals As Variant
+    Dim usdCol As Long
+    Dim principalCol As Long
+    Dim interestCol As Long
+    Dim maturityRemainingCol As Long
+
+    neededRows = results.Count
+
+    totalRow = FindTotalRow(wsOut)
+
+    If totalRow = 0 Then
+        totalRow = 7 + neededRows
+        wsOut.Cells(totalRow, "B").value = "Total"
+    End If
+
+    existingDataRows = totalRow - 7
+    extraRowsNeeded = neededRows - existingDataRows
+
+    If extraRowsNeeded > 0 Then
+        wsOut.Rows(totalRow).Resize(extraRowsNeeded).Insert Shift:=xlDown
+        wsOut.Rows(7).Copy
+        wsOut.Rows(totalRow).Resize(extraRowsNeeded).PasteSpecial Paste:=xlPasteFormats
+        Application.CutCopyMode = False
+        totalRow = FindTotalRow(wsOut)
+    End If
+
+    If neededRows = 0 Then
+        UpdateTotalRow wsOut, cfg
+        Exit Sub
+    End If
+
+    lastCol = LastOutputColumn(cfg)
+    numCols = lastCol - 1 ' number of columns from B to lastCol, inclusive
+
+    ReDim outputArr(1 To neededRows, 1 To numCols)
+
+    For i = 1 To neededRows
+        rowVals = results(i)
+        For j = 1 To numCols
+            outputArr(i, j) = rowVals(j)
+        Next j
+    Next i
+
+    wsOut.Range(wsOut.Cells(7, 2), wsOut.Cells(7 + neededRows - 1, 2 + numCols - 1)).value = outputArr
+
+    usdCol = lastCol
+    principalCol = usdCol - 1
+    interestCol = usdCol - 2
+    maturityRemainingCol = usdCol - 3
+
+    With wsOut
+        .Range(.Cells(7, maturityRemainingCol), .Cells(7 + neededRows - 1, maturityRemainingCol)).NumberFormat = "0"
+        .Range(.Cells(7, interestCol), .Cells(7 + neededRows - 1, interestCol)).NumberFormat = "0.00"
+        .Range(.Cells(7, principalCol), .Cells(7 + neededRows - 1, principalCol)).NumberFormat = "#,##0.00"
+        .Range(.Cells(7, usdCol), .Cells(7 + neededRows - 1, usdCol)).NumberFormat = "#,##0.00"
+    End With
+
+    UpdateTotalRow wsOut, cfg
+
+End Sub
+
+Private Sub UpdateTotalRow(ByVal wsOut As Worksheet, ByVal cfg As Object)
+
+    Dim totalRow As Long
+    Dim usdCol As Long
+    Dim principalCol As Long
+
+    totalRow = FindTotalRow(wsOut)
+
+    If totalRow = 0 Then Exit Sub
+
+    usdCol = LastOutputColumn(cfg)
+    principalCol = usdCol - 1
+
+    If totalRow > 7 Then
+        wsOut.Cells(totalRow, principalCol).Formula = "=SUM(" & ColLetter(principalCol) & "7:" & ColLetter(principalCol) & (totalRow - 1) & ")"
+        wsOut.Cells(totalRow, usdCol).Formula = "=SUM(" & ColLetter(usdCol) & "7:" & ColLetter(usdCol) & (totalRow - 1) & ")"
+    Else
+        wsOut.Cells(totalRow, principalCol).value = 0
+        wsOut.Cells(totalRow, usdCol).value = 0
+    End If
+
+End Sub
+
+'=========================================================
+' Country and Region mapping
+' Uses Country sheet if available.
+' If Country sheet is absent, uses built-in fallback mapping.
+'=========================================================
+Private Sub BuildCountryRegionMaps( _
+    ByVal wsCountry As Worksheet, _
+    ByVal countryMap As Object, _
+    ByVal regionMap As Object _
+)
+
+    If Not wsCountry Is Nothing Then
+        LoadCountrySheetMapping wsCountry, countryMap, regionMap
+    End If
+
+    If countryMap.Count = 0 Then
+        LoadFallbackCountryMapping countryMap, regionMap
+    End If
+
+End Sub
+
+Private Sub LoadCountrySheetMapping( _
+    ByVal wsCountry As Worksheet, _
+    ByVal countryMap As Object, _
+    ByVal regionMap As Object _
+)
+
+    Dim lastRow As Long
+    Dim r As Long
+    Dim loc As String
+
+    lastRow = LastUsedRow(wsCountry, "A")
+
+    For r = 2 To lastRow
+        loc = NormalizeLocation(wsCountry.Cells(r, "A").value)
+
+        If Len(loc) > 0 Then
+            regionMap(loc) = wsCountry.Cells(r, "B").value
+            countryMap(loc) = wsCountry.Cells(r, "C").value
+        End If
+    Next r
+
+End Sub
+
+Private Sub LoadFallbackCountryMapping(ByVal countryMap As Object, ByVal regionMap As Object)
+
+    AddCountryMapping countryMap, regionMap, "DZ", "AFRICA", "ALGERIA"
+    AddCountryMapping countryMap, regionMap, "MA", "AFRICA", "MOROCCO"
+    AddCountryMapping countryMap, regionMap, "TN", "AFRICA", "TUNISIA"
+
+    AddCountryMapping countryMap, regionMap, "AU", "ASIA", "AUSTRALIA"
+    AddCountryMapping countryMap, regionMap, "BD", "ASIA", "BANGLADESH"
+    AddCountryMapping countryMap, regionMap, "BN", "ASIA", "BRUNEI"
+    AddCountryMapping countryMap, regionMap, "CN", "ASIA", "CHINA"
+    AddCountryMapping countryMap, regionMap, "HK", "ASIA", "HONG KONG"
+    AddCountryMapping countryMap, regionMap, "ID", "ASIA", "INDONESIA"
+    AddCountryMapping countryMap, regionMap, "IN", "ASIA", "INDIA"
+    AddCountryMapping countryMap, regionMap, "JP", "ASIA", "JAPAN"
+    AddCountryMapping countryMap, regionMap, "KR", "ASIA", "SOUTH KOREA"
+    AddCountryMapping countryMap, regionMap, "LB", "ASIA", "LEBANON"
+    AddCountryMapping countryMap, regionMap, "MY", "ASIA", "MALAYSIA"
+    AddCountryMapping countryMap, regionMap, "PH", "ASIA", "PHILIPPINES"
+    AddCountryMapping countryMap, regionMap, "PK", "ASIA", "PAKISTAN"
+    AddCountryMapping countryMap, regionMap, "SG", "ASIA", "SINGAPORE"
+    AddCountryMapping countryMap, regionMap, "TH", "ASIA", "THAILAND"
+    AddCountryMapping countryMap, regionMap, "TW", "ASIA", "TAIWAN"
+    AddCountryMapping countryMap, regionMap, "VN", "ASIA", "VIETNAM"
+
+    AddCountryMapping countryMap, regionMap, "BE", "EU", "BELGIUM"
+    AddCountryMapping countryMap, regionMap, "CY", "EU", "CYPRUS"
+    AddCountryMapping countryMap, regionMap, "CZ", "EU", "CZECH"
+    AddCountryMapping countryMap, regionMap, "DE", "EU", "GERMANY"
+    AddCountryMapping countryMap, regionMap, "DK", "EU", "DENMARK"
+    AddCountryMapping countryMap, regionMap, "ES", "EU", "SPAIN"
+    AddCountryMapping countryMap, regionMap, "FI", "EU", "FINLAND"
+    AddCountryMapping countryMap, regionMap, "FR", "EU", "FRANCE"
+    AddCountryMapping countryMap, regionMap, "GR", "EU", "GREECE"
+    AddCountryMapping countryMap, regionMap, "HU", "EU", "HUNGARY"
+    AddCountryMapping countryMap, regionMap, "IE", "EU", "IRELAND"
+    AddCountryMapping countryMap, regionMap, "IT", "EU", "ITALY"
+    AddCountryMapping countryMap, regionMap, "LU", "EU", "LUXEMBOURG"
+    AddCountryMapping countryMap, regionMap, "NL", "EU", "NETHERLANDS"
+    AddCountryMapping countryMap, regionMap, "PT", "EU", "PORTUGAL"
+    AddCountryMapping countryMap, regionMap, "SE", "EU", "SWEDEN"
+
+    AddCountryMapping countryMap, regionMap, "AE", "GCC", "UNITED ARAB EMIRATES"
+    AddCountryMapping countryMap, regionMap, "BH", "GCC", "BAHRAIN"
+    AddCountryMapping countryMap, regionMap, "KW", "GCC", "KUWAIT"
+    AddCountryMapping countryMap, regionMap, "OM", "GCC", "OMAN"
+    AddCountryMapping countryMap, regionMap, "SA", "GCC", "SAUDI ARABIA"
+
+    AddCountryMapping countryMap, regionMap, "CA", "N AM", "CANADA"
+    AddCountryMapping countryMap, regionMap, "US", "N AM", "UNITED STATES"
+
+    AddCountryMapping countryMap, regionMap, "QA", "QATAR", "QATAR"
+    AddCountryMapping countryMap, regionMap, "QAR", "QATAR", "QATAR"
+
+    AddCountryMapping countryMap, regionMap, "CH", "REST OF EUROPE", "SWITZERLAND"
+    AddCountryMapping countryMap, regionMap, "GB", "REST OF EUROPE", "UNITED KINGDOM"
+    AddCountryMapping countryMap, regionMap, "HR", "REST OF EUROPE", "CROATIA"
+    AddCountryMapping countryMap, regionMap, "LI", "REST OF EUROPE", "LIECHTENSTEIN"
+    AddCountryMapping countryMap, regionMap, "NO", "REST OF EUROPE", "NORWAY"
+    AddCountryMapping countryMap, regionMap, "TR", "REST OF EUROPE", "TURKEY"
+
+    AddCountryMapping countryMap, regionMap, "VG", "THE AMERICAS", "BRITISH VIRGIN ISLAN"
+
+End Sub
+
+Private Sub AddCountryMapping( _
+    ByVal countryMap As Object, _
+    ByVal regionMap As Object, _
+    ByVal loc As String, _
+    ByVal regionName As String, _
+    ByVal countryName As String _
+)
+
+    loc = NormalizeLocation(loc)
+    regionMap(loc) = regionName
+    countryMap(loc) = countryName
+
+End Sub
+
+'=========================================================
+' Helpers
+'=========================================================
+Private Function BuildMatchKey( _
+    ByVal currencyCode As String, _
+    ByVal locationCode As String, _
+    ByVal ordinalCode As String _
+) As String
+
+    BuildMatchKey = UCase$(Trim$(currencyCode)) & "|" & _
+                    UCase$(NormalizeLocation(locationCode)) & "|" & _
+                    UCase$(Trim$(ordinalCode))
+
+End Function
+
+Private Function NormalizeLocation(ByVal value As Variant) As String
+
+    Dim s As String
+
+    s = UCase$(Trim$(CStr(value)))
+
+    If s = "QAR" Then
+        s = "QA"
+    End If
+
+    NormalizeLocation = s
+
+End Function
+
+Private Function GetMappedValue( _
+    ByVal dict As Object, _
+    ByVal keyValue As String, _
+    ByVal defaultValue As String _
+) As String
+
+    keyValue = NormalizeLocation(keyValue)
+
+    If dict.Exists(keyValue) Then
+        GetMappedValue = dict(keyValue)
+    Else
+        GetMappedValue = defaultValue
+    End If
+
+End Function
+
+Private Function ToNumber(ByVal value As Variant) As Double
+
+    If IsError(value) Then
+        ToNumber = 0
+    ElseIf IsNumeric(value) Then
+        ToNumber = CDbl(value)
+    Else
+        ToNumber = 0
+    End If
+
+End Function
+
+Private Function AmountsEqual(ByVal amount1 As Double, ByVal amount2 As Double) As Boolean
+
+    AmountsEqual = Abs(amount1 - amount2) <= 0.01
+
+End Function
+
+' Maturity Remaining = Maturity Date - Dates!B2 (the reporting "as of" date)
+Private Function CalculateMaturityRemaining(ByVal maturityDate As Variant, ByVal referenceDate As Variant) As Variant
+
+    If IsDate(maturityDate) And IsDate(referenceDate) Then
+        CalculateMaturityRemaining = CLng(CDate(maturityDate) - CDate(referenceDate))
+    Else
+        CalculateMaturityRemaining = 0
+    End If
+
+End Function
+
+Private Sub MarkDealAsUsed(ByVal usedDeals As Object, ByVal rowNo As Variant)
+
+    usedDeals(CStr(rowNo)) = True
+
+End Sub
+
+Private Function LastUsedRow(ByVal ws As Worksheet, ByVal colLetter As String) As Long
+
+    LastUsedRow = ws.Cells(ws.Rows.Count, colLetter).End(xlUp).Row
+
+End Function
+
+Private Function FindTotalRow(ByVal ws As Worksheet) As Long
+
+    Dim lastRow As Long
+    Dim r As Long
+
+    lastRow = LastUsedRow(ws, "B")
+
+    For r = 7 To lastRow + 20
+        If UCase$(Trim$(CStr(ws.Cells(r, "B").value))) = "TOTAL" Then
+            FindTotalRow = r
+            Exit Function
+        End If
+    Next r
+
+    FindTotalRow = 0
+
+End Function
+
+Private Function GetSheetByPossibleNames(ByVal wb As Workbook, ByVal names As Variant) As Worksheet
+
+    Dim i As Long
+    Dim ws As Worksheet
+
+    For i = LBound(names) To UBound(names)
+        For Each ws In wb.Worksheets
+            If UCase$(Trim$(ws.Name)) = UCase$(Trim$(CStr(names(i)))) Then
+                Set GetSheetByPossibleNames = ws
+                Exit Function
+            End If
+        Next ws
+    Next i
+
+    Set GetSheetByPossibleNames = Nothing
+
+End Function
+
+Private Function GetOptionalSheetByPossibleNames(ByVal wb As Workbook, ByVal names As Variant) As Worksheet
+
+    Set GetOptionalSheetByPossibleNames = GetSheetByPossibleNames(wb, names)
+
+End Function
+
+Private Function SortDealsByAmountDesc(ByVal deals As Collection) As Collection
+
+    Dim arr() As Object
+    Dim i As Long
+    Dim j As Long
+    Dim temp As Object
+    Dim sorted As New Collection
+
+    If deals.Count = 0 Then
+        Set SortDealsByAmountDesc = sorted
+        Exit Function
+    End If
+
+    ReDim arr(1 To deals.Count)
+
+    For i = 1 To deals.Count
+        Set arr(i) = deals(i)
+    Next i
+
+    For i = LBound(arr) To UBound(arr) - 1
+        For j = i + 1 To UBound(arr)
+            If ToNumber(arr(j)("Amount")) > ToNumber(arr(i)("Amount")) Then
+                Set temp = arr(i)
+                Set arr(i) = arr(j)
+                Set arr(j) = temp
+            End If
+        Next j
+    Next i
+
+    For i = LBound(arr) To UBound(arr)
+        sorted.Add arr(i)
+    Next i
+
+    Set SortDealsByAmountDesc = sorted
+
+End Function
+
+Private Function FirstNDeals(ByVal deals As Collection, ByVal n As Long) As Collection
+
+    Dim result As New Collection
+    Dim i As Long
+
+    For i = 1 To deals.Count
+        If i > n Then Exit For
+        result.Add deals(i)
+    Next i
+
+    Set FirstNDeals = result
+
+End Function
+
+' Converts a 1-based column number to its letter reference (e.g. 14 -> "N").
+Private Function ColLetter(ByVal colNum As Long) As String
+
+    Dim n As Long
+    Dim rem_ As Long
+    Dim s As String
+
+    n = colNum
+
+    Do While n > 0
+        rem_ = (n - 1) Mod 26
+        s = Chr(65 + rem_) & s
+        n = (n - rem_ - 1) \ 26
+    Loop
+
+    ColLetter = s
+
+End Function
