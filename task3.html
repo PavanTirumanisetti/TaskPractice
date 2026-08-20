@@ -21,12 +21,11 @@ Sub Generate_FinalReport_NewTemplate()
     Application.Calculation = xlCalculationManual
     
     '==========================================================================
-    ' CLEANING – clear only data cells in the new vertical sheets
+    ' CLEANING – clear ONLY data cells (never the Serial No. header rows)
     '==========================================================================
     ClearAllSections wsSeller
     ClearAllSections wsBuyer
     
-    ' Optional: still clear the old sheets if they exist (harmless)
     On Error Resume Next
     Sheets("2-Data Sorting-FX Seller ").Range("B10:D500").ClearContents
     Sheets("2-Data Sorting-FX Seller ").Range("L10:N500").ClearContents
@@ -211,7 +210,7 @@ Sub Generate_FinalReport_NewTemplate()
     Application.DisplayAlerts = True
     Application.ScreenUpdating = True
     
-    MsgBox "Data Sorting FX Seller & FX Buyer populated successfully into the new vertical template!", vbInformation
+    MsgBox "Data Sorting FX Seller & FX Buyer populated successfully!", vbInformation
     Exit Sub
     
 ErrHandler:
@@ -223,11 +222,10 @@ ErrHandler:
 End Sub
 
 '==============================================================================
-' Helper: Clear data cells only (never touch headers / merged cells / Grand Total)
+' Clear ONLY real data rows – never touch the “Serial No.” header row
 '==============================================================================
 Private Sub ClearAllSections(ws As Worksheet)
-    Dim sections As Variant
-    Dim s As Variant
+    Dim sections As Variant, s As Variant
     Dim hdrRow As Long, dataStart As Long, grandRow As Long
     Dim r As Long
     
@@ -236,18 +234,20 @@ Private Sub ClearAllSections(ws As Worksheet)
     For Each s In sections
         hdrRow = FindSectionHeaderRow(ws, CStr(s))
         If hdrRow > 0 Then
-            dataStart = FindFirstDataRow(ws, hdrRow)
+            dataStart = FindFirstDataRow(ws, hdrRow)   ' always after the Serial No. row
             grandRow = FindGrandTotalRow(ws, dataStart)
             If dataStart > 0 And grandRow > dataStart Then
                 For r = dataStart To grandRow - 1
-                    ' Clear only the writable columns (Serial, Name, Total)
-                    ' Leave CR No / ID / Bank Code / License columns untouched
-                    ws.Cells(r, 1).ClearContents   ' Serial
-                    ws.Cells(r, 2).ClearContents   ' Name
-                    If s = "Individual" Then
-                        ws.Cells(r, 5).ClearContents   ' Total is in col E for Individual
-                    Else
-                        ws.Cells(r, 4).ClearContents   ' Total is in col D for others
+                    ' Safety: skip if this row somehow still looks like a header
+                    If InStr(1, UCase$(Trim$(CStr(ws.Cells(r, 1).Value))), "SERIAL", vbTextCompare) = 0 And _
+                       UCase$(Trim$(CStr(ws.Cells(r, 1).Value))) <> "GRAND TOTAL" Then
+                        ws.Cells(r, 1).ClearContents   ' Serial
+                        ws.Cells(r, 2).ClearContents   ' Name
+                        If s = "Individual" Then
+                            ws.Cells(r, 5).ClearContents   ' Total (col E)
+                        Else
+                            ws.Cells(r, 4).ClearContents   ' Total (col D)
+                        End If
                     End If
                 Next r
             End If
@@ -256,7 +256,8 @@ Private Sub ClearAllSections(ws As Worksheet)
 End Sub
 
 '==============================================================================
-' Helper: Locate section header row by text (handles merged cells)
+' Find the actual column-header row that contains “Serial No.”
+' (this is the maroon row under each section title)
 '==============================================================================
 Private Function FindSectionHeaderRow(ws As Worksheet, sectionName As String) As Long
     Dim r As Long, c As Long
@@ -265,17 +266,19 @@ Private Function FindSectionHeaderRow(ws As Worksheet, sectionName As String) As
     For r = 1 To 60
         For c = 1 To 6
             cellVal = UCase$(Trim$(CStr(ws.Cells(r, c).Value)))
-            If InStr(1, cellVal, UCase$(sectionName), vbTextCompare) > 0 Then
-                ' Prefer the row that also contains "Serial" or is a dark header
-                If InStr(1, cellVal, "SERIAL", vbTextCompare) > 0 Or _
-                   InStr(1, cellVal, "NAME OF THE FX", vbTextCompare) > 0 Or _
-                   ws.Cells(r, c).MergeCells Then
-                    FindSectionHeaderRow = r
-                    Exit Function
-                End If
-                ' Fallback – still accept pure section name
-                FindSectionHeaderRow = r
-                Exit Function
+            ' Look for the row that has BOTH the section name (or is near it)
+            ' AND the text “SERIAL”
+            If InStr(1, cellVal, "SERIAL", vbTextCompare) > 0 Then
+                ' Check a few rows above for the section name (handles merged titles)
+                Dim k As Long
+                For k = r To Application.Max(1, r - 3) Step -1
+                    If InStr(1, UCase$(Trim$(CStr(ws.Cells(k, c).Value))), UCase$(sectionName), vbTextCompare) > 0 Or _
+                       InStr(1, UCase$(Trim$(CStr(ws.Cells(k, 1).Value))), UCase$(sectionName), vbTextCompare) > 0 Or _
+                       InStr(1, UCase$(Trim$(CStr(ws.Cells(k, 2).Value))), UCase$(sectionName), vbTextCompare) > 0 Then
+                        FindSectionHeaderRow = r   ' return the Serial No. row
+                        Exit Function
+                    End If
+                Next k
             End If
         Next c
     Next r
@@ -283,29 +286,20 @@ Private Function FindSectionHeaderRow(ws As Worksheet, sectionName As String) As
 End Function
 
 '==============================================================================
-' Helper: First usable data row under a header (skips merged header rows)
+' First data row is ALWAYS the row immediately after the Serial No. header
 '==============================================================================
 Private Function FindFirstDataRow(ws As Worksheet, headerRow As Long) As Long
-    Dim r As Long
-    For r = headerRow + 1 To headerRow + 8
-        ' Skip rows that still look like headers or are completely merged
-        If Not ws.Cells(r, 1).MergeCells And _
-           Not ws.Cells(r, 2).MergeCells And _
-           UCase$(Trim$(CStr(ws.Cells(r, 1).Value))) <> "SERIAL NO." And _
-           UCase$(Trim$(CStr(ws.Cells(r, 1).Value))) <> "GRAND TOTAL" Then
-            FindFirstDataRow = r
-            Exit Function
-        End If
-    Next r
-    FindFirstDataRow = headerRow + 1   ' safe fallback
+    ' headerRow is the row that contains “Serial No.”
+    ' so data starts on the next row
+    FindFirstDataRow = headerRow + 1
 End Function
 
 '==============================================================================
-' Helper: Find the Grand Total row that belongs to the current section
+' Find the Grand Total row belonging to the current section
 '==============================================================================
 Private Function FindGrandTotalRow(ws As Worksheet, afterRow As Long) As Long
     Dim r As Long
-    For r = afterRow To afterRow + 30
+    For r = afterRow To afterRow + 40
         If UCase$(Trim$(CStr(ws.Cells(r, 1).Value))) = "GRAND TOTAL" Then
             FindGrandTotalRow = r
             Exit Function
@@ -315,7 +309,7 @@ Private Function FindGrandTotalRow(ws As Worksheet, afterRow As Long) As Long
 End Function
 
 '==============================================================================
-' Core population routine – writes into one section only
+' Write data starting AFTER the Serial No. header row
 '==============================================================================
 Private Sub PopulateSection(ws As Worksheet, sectionName As String, _
                             srcNames As Range, srcTotals As Range, _
@@ -324,34 +318,32 @@ Private Sub PopulateSection(ws As Worksheet, sectionName As String, _
     Dim hdrRow As Long, dataStart As Long, grandRow As Long
     Dim available As Long, needInsert As Long
     Dim destNameCol As Long, destTotalCol As Long
-    Dim r As Long, i As Long
+    Dim i As Long
     Dim visibleNames As Range, visibleTotals As Range
+    Dim cell As Range
     
     hdrRow = FindSectionHeaderRow(ws, sectionName)
     If hdrRow = 0 Then Exit Sub
     
-    dataStart = FindFirstDataRow(ws, hdrRow)
+    dataStart = FindFirstDataRow(ws, hdrRow)   ' <-- always after the header
     grandRow = FindGrandTotalRow(ws, dataStart)
     If grandRow = 0 Then Exit Sub
     
-    ' Column mapping for the new template
-    destNameCol = 2   ' Column B = Name
+    destNameCol = 2
     If sectionName = "Individual" Then
-        destTotalCol = 5   ' Column E
+        destTotalCol = 5
     Else
-        destTotalCol = 4   ' Column D
+        destTotalCol = 4
     End If
     
     available = grandRow - dataStart
     needInsert = recordCount - available
     
-    ' Expand the section if necessary (insert above Grand Total)
     If needInsert > 0 Then
         ws.Rows(grandRow).Resize(needInsert).Insert Shift:=xlDown
         grandRow = grandRow + needInsert
     End If
     
-    ' Get only the visible (filtered) cells
     On Error Resume Next
     Set visibleNames = srcNames.SpecialCells(xlCellTypeVisible)
     Set visibleTotals = srcTotals.SpecialCells(xlCellTypeVisible)
@@ -359,19 +351,19 @@ Private Sub PopulateSection(ws As Worksheet, sectionName As String, _
     
     If visibleNames Is Nothing Then Exit Sub
     
-    ' Write values (formatting is left completely untouched)
     i = 0
-    For Each r In visibleNames.Cells   ' r is actually a Range here
+    For Each cell In visibleNames.Cells
         i = i + 1
         If i > recordCount Then Exit For
         
-        ws.Cells(dataStart + i - 1, 1).Value = i                          ' Serial
-        ws.Cells(dataStart + i - 1, destNameCol).Value = r.Value          ' Name
+        ' Write only into data rows – never into the Serial No. header
+        ws.Cells(dataStart + i - 1, 1).Value = i
+        ws.Cells(dataStart + i - 1, destNameCol).Value = cell.Value
         ws.Cells(dataStart + i - 1, destTotalCol).Value = visibleTotals.Cells(i).Value
         ws.Cells(dataStart + i - 1, destTotalCol).NumberFormat = "0.00_);(0.00)"
-    Next r
+    Next cell
     
-    ' Update Grand Total formula to the exact range just populated
+    ' Update Grand Total formula
     ws.Cells(grandRow, destTotalCol).Formula = _
         "=SUM(" & ws.Cells(dataStart, destTotalCol).Address(False, False) & ":" & _
                  ws.Cells(dataStart + recordCount - 1, destTotalCol).Address(False, False) & ")"
