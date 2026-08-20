@@ -1,335 +1,722 @@
-## [cite_start]Easy: Food Stamps [cite: 1]
-You want to buy food from a store. [cite_start]You have a scoring system that uses a unit called taste points. [cite: 2] [cite_start]Each time you buy a type of food, you can measure its tastiness by the number of taste points you get from that food. [cite: 3] You have N types of food. [cite_start]You can buy any type any number of times, as long as the total number of meals does not exceed M. [cite: 4] [cite_start]However, you don't want to grow tired of a food if you buy it too often. [cite: 5] [cite_start]Therefore, you will get $v[i]-d[i]*(ti-1)$ taste points when you buy the i-th type of food for the ti-th time. [cite: 6] [cite_start]Find the maximum number of taste points you can achieve. [cite: 7]
+Give a macro to populate data from PivotTable sheet to Data Sorting FX Seller and Data Sorting FX Buyer.
+For any information and mapping please take it from below code from FILLING 2-Data Sorting-FX Seller and FILLING 2-Data Sorting-FX Buyer
+I have an existing Excel report with an existing VBA macro that is already working correctly for the old report template. I now need to modify the macro so that the same data, mappings, calculations, and business logic are populated correctly into a new report template.
 
-### [cite_start]Input Format [cite: 8]
-* [cite_start]The first line contains an integer, n, denoting the number of types of food you can buy. [cite: 9]
-* [cite_start]The next line contains an integer, m, denoting the maximum number of meals you can buy. [cite: 10]
-* [cite_start]Each line i of the n subsequent lines (where $0 \le i < n$) contains an integer describing v[i]. [cite: 11]
-* [cite_start]Each line i of the n subsequent lines (where $0 \le i < n$) contains an integer describing d[i]. [cite: 12]
+I have attached two images for reference:
 
-### [cite_start]Constraints [cite: 13]
-* [cite_start]$1 <= n <= 10^5$ [cite: 14]
-* [cite_start]$1 <= m <= 10^9$ [cite: 15]
-* [cite_start]$1 <= v[i] <= 10^9$ [cite: 16]
-* [cite_start]$1 <= d[i] <= 10^9$ [cite: 17]
+1. **Image 1 – Existing/Old Report Template**
 
-### [cite_start]Sample Test Cases [cite: 18]
-[cite_start]**Case 1** [cite: 19]
-[cite_start]**Input:** [cite: 20]
-[cite_start]1 [cite: 21]
-[cite_start]1 [cite: 22]
-[cite_start]5 [cite: 23]
-[cite_start]2 [cite: 24]
-[cite_start]**Output:** [cite: 25]
-[cite_start]5 [cite: 26]
-[cite_start]**Explanation:** [cite: 27]
-[cite_start]You can only buy the first food once and get 5 taste points. [cite: 28]
+   * The existing report contains multiple sections arranged horizontally/side-by-side.
+   * The sections include:
 
-[cite_start]**Case 2** [cite: 29]
-[cite_start]**Input:** [cite: 30]
-[cite_start]2 [cite: 31]
-[cite_start]2 [cite: 32]
-[cite_start]5 [cite: 33]
-[cite_start]7 [cite: 34]
-[cite_start]2 [cite: 35]
-[cite_start]4 [cite: 36]
-[cite_start]**Output:** [cite: 37]
-[cite_start]12 [cite: 38]
-[cite_start]**Explanation:** [cite: 39]
-[cite_start]You can buy 1 meal of the first type and 1 meal of the second type of food. [cite: 40] [cite_start]The answer therefore will be $5+7=12$ [cite: 41]
+     * Corporate
+     * Individual
+     * Bank
+     * Exchange House
+     * Other
+   * The existing VBA macro was developed specifically for this old layout.
 
-[cite_start]**Case 3** [cite: 42]
-[cite_start]**Input:** [cite: 43]
-[cite_start]3 [cite: 44]
-[cite_start]5 [cite: 45]
-[cite_start]5 [cite: 46]
-[cite_start]7 [cite: 47]
-[cite_start]9 [cite: 48]
-[cite_start]2 [cite: 49]
-[cite_start]4 [cite: 50]
-[cite_start]6 [cite: 51]
-[cite_start]**Output:** [cite: 52]
-[cite_start]27 [cite: 53]
-[cite_start]**Explanation:** [cite: 54]
-[cite_start]you can buy the 2 meals of the first type and 2 meals of the second type and 1 meal of the third type and get 27 taste points as follows: [cite: 55]
-[cite_start]first type: $5+(5-2)*1=8$ [cite: 56]
-[cite_start]second type: $7+(7-4)*1=10$ [cite: 57]
-[cite_start]third type: $9=9$ [cite: 58]
-[cite_start]answer: $8+10+9=27$ [cite: 59]
+2. **Image 2 – New Report Template**
 
----
+   * The same sections are now arranged vertically, one below another.
+   * The order is:
 
-## [cite_start]Medium: MSS With Swaps [cite: 60]
-[cite_start]Given an array a of length n and an integer k. [cite: 61] [cite_start]You must perform the following operation exactly k times: choose two indices i, j and swap $(ai,aj).$ [cite: 62] [cite_start]Find the maximum possible MSS (maximum subarray sum) after performing the above operation exactly k times. [cite: 63]
-[cite_start]**Note:** [cite: 64]
-* [cite_start]Swapping the same pair again is allowed but useless (a double-swap cancels out). [cite: 65] [cite_start]Therefore, performing exactly k swaps is equivalent to at most k useful swaps. [cite: 66]
+     * Corporate
+     * Individual
+     * Bank
+     * Exchange House
+     * Other
+   * Each section has its own headers, columns, data rows, and Grand Total row.
+   * The section/header cells are merged in the new template.
 
-### [cite_start]Input Format [cite: 67]
-* [cite_start]The first line contains an integer, n, denoting the size of array [cite: 68]
-* [cite_start]The next line contains an integer, k, denoting the number of swaps. [cite: 69]
-* [cite_start]Each line i of the n subsequent lines (where $0 \le i < n$) contains an integer describing a[i]. [cite: 70]
+### Required VBA Macro Changes
 
-### [cite_start]Constraints [cite: 71]
-* [cite_start]$2 <= n <= 500$ [cite: 72]
-* [cite_start]$0 <= k <= n$ [cite: 73]
-* [cite_start]-1000 <= a[i] <= 1000 [cite: 74]
+Modify the existing VBA macro so that it continues to use **all existing mappings, calculations, filtering logic, and business rules from the original macro**, but changes the data-population logic to match the new vertical template.
 
-### [cite_start]Sample Test Cases [cite: 75]
-[cite_start]**Case 1** [cite: 76]
-[cite_start]**Input:** [cite: 77]
-[cite_start]3 [cite: 78]
-[cite_start]1 [cite: 79]
-[cite_start]1 [cite: 80]
-[cite_start]-5 [cite: 81]
-[cite_start]2 [cite: 82]
-[cite_start]**Output:** [cite: 83]
-[cite_start]3 [cite: 84]
-[cite_start]**Explanation:** [cite: 85]
-[cite_start]By swapping 1 and -5, we get a maximum subarray sum equal to $1+2=3$. [cite: 86]
+The macro should work as follows:
 
-[cite_start]**Case 2** [cite: 87]
-[cite_start]**Input:** [cite: 88]
-[cite_start]3 [cite: 89]
-[cite_start]0 [cite: 90]
-[cite_start]5 [cite: 91]
-[cite_start]-1 [cite: 92]
-[cite_start]5 [cite: 93]
-[cite_start]**Output:** [cite: 94]
-[cite_start]9 [cite: 95]
-[cite_start]**Explanation:** [cite: 96]
-[cite_start]The maximum array sum is equal to the sum of the entire array $5-1+5=9,$ and it's not possible to achieve a greater sum. [cite: 97]
+1. **Corporate Section**
 
-[cite_start]**Case 3** [cite: 98]
-[cite_start]**Input:** [cite: 99]
-[cite_start]3 [cite: 100]
-[cite_start]0 [cite: 101]
-[cite_start]1 [cite: 102]
-[cite_start]-5 [cite: 103]
-[cite_start]2 [cite: 104]
-[cite_start]**Output:** [cite: 105]
-[cite_start]2 [cite: 106]
-[cite_start]**Explanation:** [cite: 107]
-[cite_start]The maximum subarray sum is the sum of [2] which is equal to 2. [cite: 108]
+   * First identify the Corporate section in the new template.
+   * Populate the Corporate data row-by-row under the Corporate header.
+   * Continue populating until all Corporate records have been written.
+   * Do not overwrite the Corporate header, merged cells, Grand Total row, or any other protected/template area.
 
----
+2. **Individual Section**
 
-## [cite_start]Hard: Lock & Parity [cite: 109]
-You are given N locks in a row (1-indexed). [cite_start]Each lock i has a value L[i]. [cite: 110] [cite_start]There is also one key under each lock, and key j has value L[j]. [cite: 111] [cite_start]You may assign some keys to some locks under the following rules: [cite: 112]
-1. [cite_start]You may assign key j to lock i only if: j < i. [cite: 113] (Each key can only be used on a lock to its right.)
-2. [cite_start]Assignments where the key and lock have the same value are forbidden: $L[j] \ne L[i]$ (So the effective value is never zero.) [cite: 114]
-3. [cite_start]Assigning key j to lock i gives: $E = |L[j]-L[i]|$ [cite: 115]
-4. [cite_start]Each lock can be assigned at most once, and each key can be used at most once. [cite: 116]
-5. [cite_start]Let even be the number of assignments with even effective value, and odd be the number of assignments with odd effective value. [cite: 117] A set of assignments is valid only if: even ≥ odd. [cite_start]This condition applies to the final chosen set. [cite: 118]
-6. [cite_start]You must perform at least one assignment. [cite: 119]
+   * After Corporate data is populated, identify where the **Individual section starts** in the new template.
+   * Start populating Individual data from the appropriate data row under the Individual header.
+   * Do not assume that Individual starts at the same row every time if the Corporate section expands or contracts.
+   * The macro should determine the correct starting position based on the actual section/header location.
 
-Find the minimum possible sum of effective values over all valid assignment sets. [cite_start]If no valid set exists, output -1. [cite: 120]
-[cite_start]**Notes:** [cite: 121]
-* [cite_start]Arrays are 1-indexed. [cite: 122]
-* [cite_start]Effective value can never be zero due to the rule $L[j] \ne L[i]$. [cite: 123]
-* [cite_start]Parity is evaluated after the entire assignment set is chosen. [cite: 124]
+3. **Bank Section**
 
-### [cite_start]Input Format [cite: 125]
-* [cite_start]The first line contains an integer, N, denoting the number of locks. [cite: 126]
-* [cite_start]Each line i of the N subsequent lines (where $1 \le i <= N$) contains an integer describing L[i]. [cite: 127]
+   * Locate the Bank section in the new template.
+   * Because the Bank section/header contains merged cells, do not attempt to write directly into the merged header cells.
+   * Identify the first valid/unmerged data row below the Bank header and populate the Bank records row-by-row from there.
 
-### [cite_start]Constraints [cite: 128]
-* [cite_start]$1 <= N <= 200$ [cite: 129]
-* [cite_start]$1 <= L[i] <= 10^5$ [cite: 130]
+4. **Exchange House Section**
 
-### [cite_start]Sample Test Cases [cite: 131]
-[cite_start]**Case 1** [cite: 132]
-[cite_start]**Input:** [cite: 133]
-[cite_start]6 [cite: 134]
-[cite_start]41 [cite: 135]
-[cite_start]54 [cite: 136]
-[cite_start]15 [cite: 137]
-[cite_start]4 [cite: 138]
-[cite_start]54 [cite: 139]
-[cite_start]4 [cite: 140]
-[cite_start]**Output:** [cite: 142]
-[cite_start]26 [cite: 141]
-[cite_start]**Explanation:** [cite: 143]
-1. [cite_start]Build allowed assignments (j < i and $L[j] \ne L[i]$) and their costs [cite: 144]
-[cite_start]List of candidate pairs (sorted increasing by cost): [cite: 145]
-$(3 \rightarrow 4): |15-4| [cite_start]= 11 - odd$ [cite: 146]
-$(3 \rightarrow 6): |15-4| [cite_start]= 11 - odd$ [cite: 147]
-$(1 \rightarrow 2): |41-54| [cite_start]= 13 - odd$ [cite: 148]
-$(1 \rightarrow 5): |41-54| [cite_start]= 13 - odd$ [cite: 149]
-$(1 \rightarrow 3): |41-15| [cite_start]= 26 - even$ [cite: 150]
-$(1 \rightarrow 4): |41-4| = 37 - odd, (1 \rightarrow 6): |41-4| [cite_start]= 37 - odd$ [cite: 151]
-$(2 \rightarrow 3): |54-15| [cite_start]= 39 - odd$ [cite: 152]
-$(3 \rightarrow 5): |15-54| [cite_start]= 39 - odd$ [cite: 153]
-$(2 \rightarrow 4): |54-4| [cite_start]= 50 - even$ [cite: 154]
-$(2 \rightarrow 6): |54-4| [cite_start]= 50 - even$ [cite: 155]
-$(4 \rightarrow 5): |4-54| [cite_start]= 50 - even$ [cite: 156]
-$(5 \rightarrow 6): |54-4| [cite_start]= 50 - even$ [cite: 157]
-(Only the smallest several are shown above - full set was enumerated in the solver.) [cite_start][cite: 158]
-2. [cite_start]Check cheapest possibilities [cite: 159]
-[cite_start]The absolute cheapest edges are the two 11-cost edges (both odd). [cite: 160] [cite_start]Any selection consisting of a single odd (e.g. cost = 11) is invalid because $even = 0 < odd = 1$. [cite: 161] [cite_start]Two odd edges $(11+11=22)$ would have $odd = 2, even = 0 \rightarrow$ still invalid. [cite: 162] [cite_start]To satisfy parity, we need at least one even assignment in the final set (or an equal number of even and odd with $evens \ge odds$). [cite: 163] The smallest even-cost edge is 26 $(1 \rightarrow 3)$. [cite_start]Any cheaper combination that satisfies parity would have to sum to < 26 and include at least one even - but there is no even with cost < 26 (next evens are 50). [cite: 164] [cite_start]Thus no valid set has total < 26. [cite: 165]
-3. [cite_start]Chosen optimal assignment [cite: 166]
-[cite_start]Pick $(1 \rightarrow 3)$ with cost 26 (even). [cite: 167]
-4. [cite_start]Parity check and final cost [cite: 168]
-[cite_start]$even = 1, odd = 0 \rightarrow$ satisfies $even \ge odd$. [cite: 169] [cite_start]Total cost = 26. [cite: 170, 171]
+   * Locate the Exchange House section.
+   * Start populating Exchange House data from the first valid data row below its header.
+   * Preserve all merged cells and existing formatting.
 
-[cite_start]**Case 2** [cite: 172]
-[cite_start]**Input:** [cite: 173]
-[cite_start]6 [cite: 174]
-[cite_start]45 [cite: 175]
-[cite_start]6 [cite: 176]
-[cite_start]38 [cite: 177]
-[cite_start]6 [cite: 178]
-[cite_start]15 [cite: 179]
-[cite_start]38 [cite: 180]
-[cite_start]**Output:** [cite: 181]
-[cite_start]30 [cite: 182]
-[cite_start]**Explanation:** [cite: 183]
-1. [cite_start]Allowed assignments and costs (sorted) [cite: 184]
-Smallest-cost candidate assignments:
-$(1 \rightarrow 3): |45-38| [cite_start]= 7 - odd$ [cite: 185]
-$(1 \rightarrow 6): |45-38| [cite_start]= 7 - odd$ [cite: 186]
-$(2 \rightarrow 5): |6-15| [cite_start]= 9 - odd$ [cite: 187]
-$(4 \rightarrow 5): |6-15| [cite_start]= 9 - odd$ [cite: 188]
-$(3 \rightarrow 5): |38-15| [cite_start]= 23 - odd$ [cite: 189]
-$(5 \rightarrow 6): |15-38| [cite_start]= 23 - odd$ [cite: 190]
-$(1 \rightarrow 5): |45-15| [cite_start]= 30 - even$ smallest even [cite: 191]
-$(2 \rightarrow 3): |6-38| [cite_start]= 32 - even$ [cite: 192]
-$(2 \rightarrow 6): |6-38| [cite_start]= 32 - even$ [cite: 193]
-$(3 \rightarrow 4): |38-6| [cite_start]= 32 - even$ [cite: 194]
-$(4 \rightarrow 6): |6-38| [cite_start]= 32 - even$ [cite: 195]
-$(1 \rightarrow 2): |45-6| [cite_start]= 39 - odd$ [cite: 196]
-$(1 \rightarrow 4): |45-6| [cite_start]= 39 - odd$ [cite: 197]
-2. [cite_start]Check cheapest possibilities [cite: 198]
-[cite_start]There are many edges with cost < 30, but the cheapest ones are odd (7, 9, 23, etc.). [cite: 199] [cite_start]A single odd edge is invalid ($even = 0 < odd = 1$). [cite: 200] [cite_start]Combining two small odd edges (e.g. $7+7=14$) still results in $odd = 2, even = 0$ which is invalid. [cite: 201] [cite_start]Any set that satisfies parity must include at least one even edge. [cite: 202] The smallest even edge available is cost 30 $(1 \rightarrow 5)$. [cite_start]There is no even with cost < 30 in this instance. [cite: 203] [cite_start]Therefore no valid assignment set can have total < 30. [cite: 204]
-3. [cite_start]Chosen optimal assignment [cite: 205]
-[cite_start]Pick $(1 \rightarrow 5)$ with cost 30 (even). [cite: 206]
-4. [cite_start]Parity check and final cost [cite: 207]
-[cite_start]$even = 1, odd = 0 \rightarrow valid$. [cite: 208] [cite_start]Total cost = 30. [cite: 209]
+5. **Other Section**
 
-[cite_start]**Case 3** [cite: 210]
-[cite_start]**Input:** [cite: 211]
-[cite_start]6 [cite: 212]
-[cite_start]6 [cite: 213]
-[cite_start]59 [cite: 214]
-[cite_start]1 [cite: 215]
-[cite_start]25 [cite: 216]
-[cite_start]59 [cite: 217]
-[cite_start]50 [cite: 218]
-[cite_start]**Output:** [cite: 219]
-[cite_start]24 [cite: 220]
-[cite_start]**Explanation:** [cite: 221]
-1. [cite_start]Allowed assignments and costs (sorted) [cite: 222]
-Smallest candidate edges:
-$(1 \rightarrow 3): |6-1| [cite_start]= 5 - odd$ [cite: 224]
-$(2 \rightarrow 6): |59-50| [cite_start]= 9 - odd$ [cite: 225]
-$(5 \rightarrow 6): |59-50| [cite_start]= 9 - odd$ [cite: 226]
-$(1 \rightarrow 4): |6-25| [cite_start]= 19 - odd$ [cite: 227]
-$(3 \rightarrow 4): |1-25| [cite_start]= 24 - even$ smallest even [cite: 228]
-$(4 \rightarrow 6): |25-50| [cite_start]= 25 - odd$ [cite: 229]
-$(2 \rightarrow 4): |59-25| [cite_start]= 34 - even$ [cite: 230]
-$(4 \rightarrow 5): |25-59| [cite_start]= 34 - even$ [cite: 231]
-$(1 \rightarrow 6): |6-50| [cite_start]= 44 - even$ [cite: 232]
-$(3 \rightarrow 6): |1-50| [cite_start]= 49 - odd$ [cite: 233]
-$(1 \rightarrow 2): |6-59| [cite_start]= 53 - odd$ [cite: 234]
-$(1 \rightarrow 5): |6-59| [cite_start]= 53 - odd$ [cite: 235]
-$(2 \rightarrow 3): |59-1| = 58 - even, (3 \rightarrow 5): |1-59| [cite_start]= 58 - even$ [cite: 236]
-2. [cite_start]Check cheapest possibilities [cite: 237]
-The very cheapest edges (5, 9, 9, 19) are odd. [cite_start]Any single odd is invalid. [cite: 238] [cite_start]Two odds alone are invalid as well (odd would exceed even). [cite: 239] The smallest even-cost edge is 24 $(3 \rightarrow 4)$. [cite_start]There is no even with cost < 24, so you cannot form a valid set whose total is smaller than 24. [cite: 240] [cite_start]Combinations that include the small odds plus an even would have total ≥ (small odd + smallest even) $\ge 5+24=29>24$, so they are worse than taking the single even 24. [cite: 241]
-3. [cite_start]Chosen optimal assignment [cite: 242]
-[cite_start]Pick $(3 \rightarrow 4)$ with cost 24 (even). [cite: 243]
-4. [cite_start]Parity check and final cost [cite: 244]
-[cite_start]$even = 1, odd = 0 \rightarrow valid$. [cite: 245] [cite_start]Total cost = 24. [cite: 246]
+   * Locate the Other section.
+   * Populate the Other records from the appropriate data row below its header.
+   * Again, do not overwrite the section header or merged cells.
 
----
+### Important Requirement Regarding Merged Cells
 
-## [cite_start]Complex: Layer-Split Path Maximization with Penalties [cite: 247]
-[cite_start]You are given an undirected graph with N nodes and M edges. [cite: 248] [cite_start]Each node u has a layer $L[u]$ (integer from 1 to K) and a value $V[u]$ [cite: 249] [cite_start]You must choose a simple path (no repeated nodes) such that: [cite: 250]
-* [cite_start]Layer Constraint Along the chosen path, the sequence of layers must be non-decreasing: $L[u1] \le L[u2] \le ... \le L[ut]$ [cite: 251]
-* [cite_start]Penalty for Layer Jumps whenever the path moves from a node with layer x to layer y where $y > x$, you pay a cost: $penalty = (y-x)^2$ [cite: 252]
-[cite_start]Find the maximum value of (sum of $V[u]$ over the path) - (sum of penalties). [cite: 253]
+The main problem with the current macro is that the new template contains merged cells for the section headers.
 
-### [cite_start]Input Format [cite: 254]
-* [cite_start]The first line contains an integer, N, denoting the number of rows in layers. [cite: 255]
-* [cite_start]The next line contains an integer, M, denoting the number of rows in edges. [cite: 256]
-* [cite_start]The next line contains an integer, K, denoting the max layer. [cite: 257]
-* [cite_start]Each line i of the N subsequent lines (where $0 \le i < N$) contains 2 space separated integers each describing the row layers[i]. [cite: 258]
-* [cite_start]Each line i of the M subsequent lines (where $0 \le i < M$) contains 2 space separated integers each describing the row edges[i]. [cite: 259]
-* [cite_start]Each row in edges[i] contains 2 space separated integers u and v denoting an edge between node u and node v. [cite: 260]
+Therefore, **do not use a fixed row-based approach from the old template**.
 
-### [cite_start]Constraints [cite: 261]
-* [cite_start]$1 <= N <= 10^5$ [cite: 262]
-* [cite_start]$1 <= M <= 10^5$ [cite: 263]
-* [cite_start]$1 <= K <= 10^5$ [cite: 264]
-* [cite_start]$-10^9 <= layers[i][j] <= 10^9$ [cite: 265]
-* [cite_start]$0 <= edges[i][j] <= N-1$ [cite: 266]
+The macro must intelligently identify each section and determine the correct first data row below that section.
 
-### [cite_start]Sample Test Cases [cite: 267]
-[cite_start]**Case 1** [cite: 268]
-[cite_start]**Input:** [cite: 269]
-[cite_start]2 [cite: 270]
-[cite_start]1 [cite: 271]
-[cite_start]10 [cite: 272]
-[cite_start]1 10 [cite: 273]
-[cite_start]3 100 [cite: 274]
-[cite_start]0 1 [cite: 275]
-[cite_start]**Output:** [cite: 276]
-[cite_start]106 [cite: 277]
-[cite_start]**Explanation:** [cite: 278]
-[cite_start]Only possible simple path: 0 $\rightarrow$ 1 [cite: 279]
-[cite_start]Layers: 1 $\rightarrow$ 3 (valid, non-decreasing) [cite: 280]
-[cite_start]Penalty = $(3-1)^2 = 4$ [cite: 281]
-[cite_start]Value gained = $10+100 = 110$ [cite: 282]
-[cite_start]Final score = 110 - 4 = 106 [cite: 283]
-[cite_start]Output = 106 [cite: 284]
+For example:
 
-[cite_start]**Case 2** [cite: 285]
-[cite_start]**Input:** [cite: 286]
-[cite_start]3 [cite: 287]
-[cite_start]2 [cite: 288]
-[cite_start]3 [cite: 289]
-[cite_start]1 10 [cite: 290]
-[cite_start]2 20 [cite: 291]
-[cite_start]3 30 [cite: 292]
-[cite_start]0 1 [cite: 293]
-[cite_start]1 2 [cite: 294]
-[cite_start]**Output:** [cite: 295]
-[cite_start]58 [cite: 296]
-[cite_start]**Explanation:** [cite: 297]
-[cite_start]Path: 0-1-2 [cite: 298]
-[cite_start]Layer sequence: 1 $\rightarrow$ 2 $\rightarrow$ 3 (valid) [cite: 299]
-[cite_start]Penalties: [cite: 300]
-[cite_start]0-1: $(2-1)^2 = 1$ [cite: 301]
-[cite_start]1-2: $(3-2)^2 = 1$ [cite: 302]
-[cite_start]Total penalty = 2 [cite: 303]
-[cite_start]Value sum = $10+20+30 = 60$ [cite: 304]
-[cite_start]$60-2 = 58$ [cite: 305]
-[cite_start]Output = 58 [cite: 306]
+Corporate Header
+↓
+Corporate Data Rows
+↓
+Corporate Grand Total
+↓
+Individual Header
+↓
+Individual Data Rows
+↓
+Individual Grand Total
+↓
+Bank Header
+↓
+Bank Data Rows
+↓
+Bank Grand Total
+↓
+Exchange House Header
+↓
+Exchange House Data Rows
+↓
+Exchange House Grand Total
+↓
+Other Header
+↓
+Other Data Rows
+↓
+Other Grand Total
 
-[cite_start]**Case 3** [cite: 307]
-[cite_start]**Input:** [cite: 308]
-[cite_start]3 [cite: 309]
-[cite_start]2 [cite: 310]
-[cite_start]3 [cite: 311]
-[cite_start]1 -5 [cite: 312]
-[cite_start]2 100 [cite: 313]
-[cite_start]3 -10 [cite: 314]
-[cite_start]0 1 [cite: 315]
-[cite_start]1 2 [cite: 316]
-[cite_start]**Output:** [cite: 317]
-[cite_start]100 [cite: 318]
-[cite_start]**Explanation:** [cite: 319]
-[cite_start]Possible path: 0 $\rightarrow$ 1 $\rightarrow$ 2 [cite: 320]
-[cite_start]But node 0 has negative value, and node 2 has negative value. [cite: 321]
-[cite_start]So best choice is to start the path at node 1 only. [cite: 322]
-[cite_start]Path: 1 [cite: 323]
-[cite_start]Value = 100 [cite: 324]
-[cite_start]No penalties [cite: 325]
-[cite_start]Score = 100 [cite: 326]
-[cite_start]Why not 1 $\rightarrow$ 2? [cite: 327]
-[cite_start]Penalty = $(3-2)^2 = 1$ [cite: 328]
-[cite_start]Value = $100 + (-10) = 90$ [cite: 329]
-[cite_start]$90-1 = 89 < 100$ [cite: 330]
-[cite_start]Why not 0 $\rightarrow$ 1? [cite: 331]
-[cite_start]Value = $-5 + 100 = 95$ [cite: 332]
-[cite_start]Penalty = $(2-1)^2 = 1$ [cite: 333]
-[cite_start]Final = $94 < 100$ [cite: 334]
-[cite_start]Output = 100 [cite: 335]
+The macro must handle this vertical structure correctly.
+
+### Preserve Existing Mapping
+
+Do NOT redesign or change the existing data mappings.
+
+Take the field mappings from the existing VBA macro and reuse them exactly.
+
+The only major change should be **where the mapped data is written in the new template**.
+
+In other words:
+
+**Existing macro logic/mapping + New template's vertical row-wise structure = Required solution**
+
+### Formatting Requirements
+
+The new template's formatting must remain unchanged.
+
+The macro must preserve:
+
+* Existing fonts
+* Font sizes
+* Borders
+* Background colors
+* Alignment
+* Number formats
+* Decimal formats
+* Header formatting
+* Grand Total formatting
+* Merged cells
+* Column widths
+* Row heights
+* Existing formulas where applicable
+
+When new data rows are populated, the formatting of the corresponding template data rows should be maintained exactly.
+
+Do not introduce a different formatting style.
+
+### Grand Total
+
+The Grand Total row for each section must remain in the correct position after the data is populated.
+
+If the number of records changes dynamically, the macro should ensure that the Grand Total calculation covers the actual populated data range for that section.
+
+Do not use hard-coded total ranges if the existing macro already has logic that can be adapted dynamically.
+
+### Dynamic Section Handling
+
+The solution should preferably identify sections based on their section names/header text such as:
+
+* "Corporate"
+* "Individual"
+* "Bank"
+* "Exchange House"
+* "Other"
+
+rather than relying entirely on hard-coded row numbers.
+
+This is important because the number of records in each section may change.
+
+The macro should therefore:
+
+1. Find the relevant section.
+2. Identify its header/data area.
+3. Determine the first available data row.
+4. Populate records row-by-row.
+5. Stop before the Grand Total row.
+6. Continue to the next section.
+7. Repeat the same process for all five sections.
+
+### Final Objective
+
+Please provide the **complete, copy-paste-ready VBA macro** based on the existing macro.
+
+Do not provide only partial modifications or pseudocode.
+
+The final macro should:
+
+* Reuse the existing macro's mappings.
+* Preserve all existing business logic.
+* Populate data vertically according to the new template.
+* Correctly handle merged cells.
+* Dynamically identify the starting row of each section.
+* Populate Corporate, Individual, Bank, Exchange House, and Other sequentially.
+* Preserve the exact formatting of the new template.
+* Maintain/update the correct Grand Total ranges.
+* Avoid overwriting headers, merged cells, formulas, or template areas.
+* Work correctly even when the number of records in any section changes.
+
+Before modifying the code, carefully compare the existing macro with the new template and map each existing output field to the corresponding column in the new template.
+
+If any existing mapping is unclear, infer it from the existing macro rather than creating a new mapping.
+
+
+
+Option Explicit
+ Sub Generate_FinalReport()
+Dim LastRowSeller, LastRowBuyer, LastColSeller, LastColBuyer, i, MonthsCount, FieldNumber, CountingSubTot, j, k As Integer
+Dim aTotal As Double
+Dim FirstofMonth, EndofMonth As Date
+Dim PVSheet As Worksheet
+Set PVSheet = Worksheets("PivotTable")
+'===============================================================================================================================
+' CLEANING
+'===============================================================================================================================
+Application.EnableEvents = False
+Application.DisplayAlerts = False
+Application.ScreenUpdating = False
+   
+PVSheet.Select
+PVSheet.Range("AA:BZ").Delete
+Sheets("2-Data Sorting-FX Seller ").Range("B10:D500").Clear
+Sheets("2-Data Sorting-FX Seller ").Range("L10:N500").Clear
+Sheets("2-Data Sorting-FX Buyer").Range("B10:D500").Clear
+Sheets("2-Data Sorting-FX Buyer").Range("L10:N500").Clear
+Sheets("1-Print-FX Seller-Inflow").Range("C26:P500").Clear
+Sheets("1-Print-FX Buyer-Outflow").Range("C26:P500").Clear
+'===============================================================================================================================
+' END OF THE MONTH DATE
+'===============================================================================================================================
+EndofMonth = DateAdd("d", -1, DateSerial(Year(Now), Month(Now), 1))
+Sheets("0-Print Top Summary").Range("C4:D4").NumberFormat = "@"
+Sheets("0-Print Top Summary").Range("C4:D4") = Format(EndofMonth, "DD-MMM-YYYY")
+Sheets("REFRESH").Range("F5") = EndofMonth
+MonthsCount = Month(EndofMonth)
+FirstofMonth = DateSerial(Year(EndofMonth), Month(EndofMonth), 1)
+FieldNumber = MonthsCount + 2
+'===============================================================================================================================
+' PREPARING THE DATA - FX Seller
+'===============================================================================================================================
+PVSheet.Select
+ActiveSheet.PivotTables("FxtPivotTable").PivotFields("DIRECTION").CurrentPage = "(All)"
+With ActiveSheet.PivotTables("FxtPivotTable").PivotFields("DIRECTION")
+    .PivotItems("FX Seller").Visible = True
+    .PivotItems("FX Buyer").Visible = False
+End With
+PVSheet.Select
+PVSheet.Columns("A:T").Select
+Selection.Copy
+PVSheet.Columns("AA:AP").Select
+Selection.PasteSpecial Paste:=xlPasteValues, Operation:=xlNone, SkipBlanks _
+:=False, Transpose:=False
+       
+PVSheet.Range("AA4") = "CLIENT NAME"
+PVSheet.Range("AA1:AT3").Delete
+PVSheet.Range("AA2:AT2").Delete
+LastRowSeller = PVSheet.Range("AA" & Rows.Count).End(xlUp).row
+If PVSheet.Range("AA" & LastRowSeller) = "Grand Total" Then
+    PVSheet.Range("AA" & LastRowSeller & ":AT" & LastRowSeller).Delete
+End If
+i = 27
+Do Until PVSheet.Cells(1, i) = "Grand Total"
+      i = i + 1
+Loop
+LastColSeller = i
+ 
+For i = 2 To LastRowSeller - 1
+    PVSheet.Cells(i, LastColSeller + 1).Value = (PVSheet.Cells(i, LastColSeller) * MonthsCount) / 12
+Next i
+PVSheet.Cells(1, LastColSeller + 1) = "PROJECTED AMOUNT"
+PVSheet.Columns("AA:AT").Select
+PVSheet.Sort.SortFields.Clear
+  
+PVSheet.Sort.SortFields.Add key:=Columns(LastColSeller), _
+SortOn:=xlSortOnValues, Order:=xlDescending, DataOption:= _
+    xlSortNormal
+   
+With PVSheet.Sort
+    .SetRange Range("AA1:AT" & LastRowSeller)
+    .Header = xlGuess
+    .MatchCase = False
+    .Orientation = xlTopToBottom
+    .SortMethod = xlPinYin
+    .Apply
+End With
+PVSheet.Range("AA:AT").Select
+PVSheet.Range(Selection, Selection.End(xlDown)).Select
+Selection.NumberFormat = "0.00"
+Selection.NumberFormat = "0.00_);(0.00)"
+   
+'===============================================================================================================================
+' PREPARING THE DATA - FX Buyer
+'===============================================================================================================================
+ActiveSheet.PivotTables("FxtPivotTable").PivotFields("DIRECTION").CurrentPage = "(All)"
+With ActiveSheet.PivotTables("FxtPivotTable").PivotFields("DIRECTION")
+    .PivotItems("FX Buyer").Visible = True
+    .PivotItems("FX Seller").Visible = False
+End With
+PVSheet.Columns("A:T").Select
+Selection.Copy
+PVSheet.Range("BA1").Select
+Selection.PasteSpecial Paste:=xlPasteValues, Operation:=xlNone, SkipBlanks _
+    :=False, Transpose:=False
+   
+PVSheet.Range("BA4") = "CLIENT NAME"
+PVSheet.Range("BA1:BT3").Delete
+PVSheet.Range("BA2:BT2").Delete
+LastRowBuyer = PVSheet.Range("BA" & Rows.Count).End(xlUp).row
+If PVSheet.Range("BA" & LastRowBuyer) = "Grand Total" Then
+    PVSheet.Range("BA" & LastRowBuyer & ":BT" & (LastRowBuyer)).Delete
+End If
+i = 49
+Do Until PVSheet.Cells(1, i) = "Grand Total"
+      i = i + 1
+Loop
+LastColBuyer = i
+PVSheet.Cells(1, LastColBuyer + 1) = "PROJECTED AMOUNT"
+For i = 2 To LastRowBuyer - 1
+    PVSheet.Cells(i, LastColBuyer + 1).Value = (PVSheet.Cells(i, LastColBuyer) * MonthsCount) / 12
+Next i
+PVSheet.Columns("BA:BT").Select
+PVSheet.Sort.SortFields.Clear
+    PVSheet.Sort.SortFields.Add key:=Columns(LastColBuyer), _
+        SortOn:=xlSortOnValues, Order:=xlAscending, DataOption:= _
+        xlSortNormal
+    With PVSheet.Sort
+        .SetRange Range("BA1:BT" & LastRowBuyer)
+        .Header = xlYes
+        .MatchCase = False
+        .Orientation = xlTopToBottom
+        .SortMethod = xlPinYin
+        .Apply
+    End With
+   
+PVSheet.Range("BB:BT").Select
+PVSheet.Range(Selection, Selection.End(xlDown)).Select
+Selection.NumberFormat = "0.00"
+Selection.NumberFormat = "0.00_);(0.00)"
+'===============================================================================================================================
+' FILLING 2-Data Sorting-FX Seller
+'===============================================================================================================================
+    PVSheet.Select
+    PVSheet.Range("AA1:AZ500").AutoFilter
+ 
+    PVSheet.Range("AA:AZ").AutoFilter Field:=1, Criteria1:="<>*QATAR CTRAL BK*"
+    PVSheet.Range("BA:BZ").AutoFilter Field:=FieldNumber, Criteria1:=">.0"
+   
+    Range("AA2").Select
+    Range(Selection, Selection.End(xlDown)).Select
+    CountingSubTot = WorksheetFunction.Subtotal(3, Range(Selection, Selection.End(xlDown)))
+    If CountingSubTot > 0 Then
+   
+        Selection.Copy
+        Sheets("2-Data Sorting-FX Seller ").Select
+        Range("B10:B" & (CountingSubTot + 9)).Select
+   
+         Selection.PasteSpecial Paste:=xlPasteValues, Operation:=xlNone, SkipBlanks _
+            :=False, Transpose:=False
+       
+        PVSheet.Select
+        Range(Cells(2, LastColSeller), Cells(LastRowSeller, LastColSeller)).Select
+        Range(Selection, Selection.End(xlDown)).Select
+       
+        Selection.Copy
+        Sheets("2-Data Sorting-FX Seller ").Select
+        Range("D10:D" & (CountingSubTot + 9)).Select
+   
+       
+        Selection.PasteSpecial Paste:=xlPasteValues, Operation:=xlNone, SkipBlanks _
+            :=False, Transpose:=False
+        Selection.NumberFormat = "0.00"
+        Selection.NumberFormat = "0.00_);(0.00)"
+   
+        PVSheet.Select
+        ActiveSheet.ShowAllData
+        PVSheet.Range("AA:BZ").AutoFilter Field:=1, Criteria1:="*QATAR CTRAL BK*"
+   
+        Range("AA2").Select
+        Range(Selection, Selection.End(xlDown)).Select
+        CountingSubTot = WorksheetFunction.Subtotal(3, Range(Selection, Selection.End(xlDown)))
+       
+        Selection.Copy
+        Sheets("2-Data Sorting-FX Seller ").Select
+        Range("L10:L" & (CountingSubTot + 9)).Select
+        
+         Selection.PasteSpecial Paste:=xlPasteValues, Operation:=xlNone, SkipBlanks _
+            :=False, Transpose:=False
+       
+        PVSheet.Select
+        Range(Cells(2, LastColSeller), Cells(LastRowSeller, LastColSeller)).Select
+        Range(Selection, Selection.End(xlDown)).Select
+        CountingSubTot = WorksheetFunction.Subtotal(3, Range(Selection, Selection.End(xlDown)))
+       
+        Selection.Copy
+        Sheets("2-Data Sorting-FX Seller ").Select
+        Range("N10:N" & (LastRowSeller + 9)).Select
+         Selection.PasteSpecial Paste:=xlPasteValues, Operation:=xlNone, SkipBlanks _
+            :=False, Transpose:=False
+    End If
+       
+'===============================================================================================================================
+' FILLING 2-Data Sorting-FX Buyer
+'===============================================================================================================================
+    PVSheet.Select
+    PVSheet.Range("BA1:BZ500").AutoFilter
+    PVSheet.Range("BA:BZ").AutoFilter Field:=1, Criteria1:="<>*QATAR CTRAL BK*"
+    PVSheet.Range("BA:BZ").AutoFilter Field:=FieldNumber, Criteria1:="<(0.0)"
+    Range("BA2").Select
+    Range(Selection, Selection.End(xlDown)).Select
+    CountingSubTot = WorksheetFunction.Subtotal(3, Range(Selection, Selection.End(xlDown)))
+   
+    If CountingSubTot > 0 Then
+        Selection.Copy
+        Sheets("2-Data Sorting-FX Buyer").Select
+        Range("B10:B" & (CountingSubTot + 9)).Select
+        
+         Selection.PasteSpecial Paste:=xlPasteValues, Operation:=xlNone, SkipBlanks _
+            :=False, Transpose:=False
+       
+        PVSheet.Select
+        Range(Cells(2, LastColBuyer), Cells(LastRowBuyer, LastColBuyer)).Select
+        Range(Selection, Selection.End(xlDown)).Select
+       
+        Selection.Copy
+        Sheets("2-Data Sorting-FX Buyer").Select
+        Range("D10:D" & (CountingSubTot + 9)).Select
+         Selection.PasteSpecial Paste:=xlPasteValues, Operation:=xlNone, SkipBlanks _
+            :=False, Transpose:=False
+   
+        Selection.NumberFormat = "0.00"
+        Selection.NumberFormat = "0.00_);(0.00)"
+   
+        PVSheet.Select
+        ActiveSheet.ShowAllData
+        PVSheet.Range("BA:BZ").AutoFilter Field:=1, Criteria1:="*QATAR CTRAL BK*"
+   
+        Range("BA2").Select
+        Range(Selection, Selection.End(xlDown)).Select
+        CountingSubTot = WorksheetFunction.Subtotal(3, Range(Selection, Selection.End(xlDown)))
+       
+        Selection.Copy
+        Sheets("2-Data Sorting-FX Buyer").Select
+        Range("L10:L" & (CountingSubTot + 9)).Select
+         Selection.PasteSpecial Paste:=xlPasteValues, Operation:=xlNone, SkipBlanks _
+            :=False, Transpose:=False
+       
+        Selection.NumberFormat = "0.00"
+        Selection.NumberFormat = "0.00_);(0.00)"
+   
+        PVSheet.Select
+        Range(Cells(2, LastColBuyer), Cells(LastRowBuyer, LastColBuyer)).Select
+        Range(Selection, Selection.End(xlDown)).Select
+        CountingSubTot = WorksheetFunction.Subtotal(3, Range(Selection, Selection.End(xlDown)))
+   
+        Selection.Copy
+        Sheets("2-Data Sorting-FX Buyer").Select
+        Range("N10:N" & (CountingSubTot + 9)).Select
+        Selection.PasteSpecial Paste:=xlPasteValues, Operation:=xlNone, SkipBlanks _
+            :=False, Transpose:=False
+    End If
+'===============================================================================================================================
+' FILLING 1-Print-FX Seller-Inflow
+'===============================================================================================================================
+    PVSheet.Select
+    PVSheet.Range("AA1:AZ500").AutoFilter
+ 
+    PVSheet.Range("AA:AZ").AutoFilter Field:=FieldNumber, Criteria1:=">=.1"
+   
+   
+    Range("AA2").Select
+    Range(Selection, Selection.End(xlDown)).Select
+    CountingSubTot = WorksheetFunction.Subtotal(3, Range(Selection, Selection.End(xlDown)))
+      
+    If CountingSubTot > 0 Then
+   
+        Selection.Copy
+        Sheets("1-Print-FX Seller-Inflow").Select
+        Range("C26:C" & (CountingSubTot + 25)).Select
+        Selection.PasteSpecial Paste:=xlPasteValues, Operation:=xlNone, SkipBlanks _
+            :=False, Transpose:=False
+       
+        PVSheet.Select
+        Range(Cells(2, 28), Cells(LastRowSeller, LastColSeller - 1)).Select
+        Range(Selection, Selection.End(xlDown)).Select
+       
+        Selection.Copy
+        Sheets("1-Print-FX Seller-Inflow").Select
+        Range("E26").Select
+       
+        Selection.PasteSpecial Paste:=xlPasteValues, Operation:=xlNone, SkipBlanks _
+            :=False, Transpose:=False
+       
+        Selection.NumberFormat = "0.00"
+        Selection.NumberFormat = "0.00_);(0.00)"
+           
+   
+        i = 26
+        Do Until Sheets("1-Print-FX Seller-Inflow").Range("C" & i) = ""
+       
+            If Trim(Sheets("1-Print-FX Seller-Inflow").Range("C" & i)) = "QATAR CTRAL BK" Then
+                Sheets("1-Print-FX Seller-Inflow").Range("D" & i) = "QCB"
+            Else
+                Sheets("1-Print-FX Seller-Inflow").Range("D" & i) = "Corporate"
+            End If
+            i = i + 1
+        Loop
+       
+        Sheets("1-Print-FX Seller-Inflow").Select
+        Rows("27:27").Select
+        Selection.Insert Shift:=xlDown, CopyOrigin:=xlFormatFromRightOrBelow
+        Sheets("1-Print-FX Seller-Inflow").Range("C27") = "Aggregated All Others (USD 1 million below )"
+        Range("C27:C27").Select
+        Selection.Font.Bold = True
+       
+        Sheets("1-Print-FX Seller-Inflow").Range("D26") = "QCB"
+        Sheets("1-Print-FX Seller-Inflow").Range("E13:P13").Formula = "=SUM(E26:E1000)"
+        Sheets("1-Print-FX Seller-Inflow").Range("E15:P15").Formula = "=E26"
+        Sheets("1-Print-FX Seller-Inflow").Range("E16:P16").Formula = "=E13-E15"
+        Sheets("1-Print-FX Seller-Inflow").Range("Q26:Q274").Formula = "=SUM(E26:P26)"
+        Sheets("1-Print-FX Seller-Inflow").Range("E25:P25").Formula = "=SUM(E26:E1000)"
+       
+        Sheets("1-Print-FX Seller-Inflow").Range("Q25") = "=SUM(Q26:Q10000)"
+       
+             '================= AGGREGATE <= 1 MILLION INTO ROW 27 (ADD ONLY) =================
+With Sheets("1-Print-FX Seller-Inflow")
+    Dim lr As Long, r As Long, c As Long
+    Dim rowTotal As Double
+    Dim THRESHOLD As Double
+    'If your values are already in "USD million units" (1.00 = 1 million), keep THRESHOLD = 1
+    'If your values are in full USD (1000000 = 1 million), change it to 1000000
+    THRESHOLD = 1
+    'Find last populated client row based on column C
+    lr = .Cells(.Rows.Count, "C").End(xlUp).row
+    If lr < 28 Then GoTo DoneAgg
+    'Initialize aggregate row totals
+    .Range("D27").Value = ""
+    .Range("E27:P27").Value = 0
+    'Loop bottom-up so deleting rows doesn’t break indexing
+    For r = lr To 28 Step -1
+        If Trim(.Cells(r, "C").Value) <> "" Then
+            'Do NOT aggregate Qatar Central Bank (keep separate)
+            If UCase$(Trim(.Cells(r, "C").Value)) <> "QATAR CTRAL BK" Then
+                'Total inflow for that client row
+                rowTotal = Application.sum(.Range(.Cells(r, "E"), .Cells(r, "P")))
+                'Aggregate all clients with inflow <= 1 million
+                If rowTotal <= THRESHOLD Then
+                    'Add E:P into E27:P27
+                    For c = 5 To 16 'E=5 ... P=16
+                        .Cells(27, c).Value = Val(.Cells(27, c).Value) + Val(.Cells(r, c).Value)
+                    Next c
+                    'Remove the individual client row
+                    .Rows(r).Delete
+                End If
+            End If
+        End If
+    Next r
+    'Optional: Keep Q27 consistent (if you use column Q totals)
+    .Range("Q27").Value = Application.sum(.Range("E27:P27"))
+DoneAgg:
+End With
+'=========================== END AGGREGATION BLOCK ===============================
+        j = 0
+        For i = 28 To 1000
+            Sheets("1-Print-FX Seller-Inflow").Range("B" & i) = j + 1
+            j = j + 1
+        Next i
+       
+    End If
+   
+   
+   
+'===============================================================================================================================
+' FILLING 1-Print-FX Buyer-Inflow
+'===============================================================================================================================
+    PVSheet.Select
+    PVSheet.Range("BA1:BZ500").AutoFilter
+    PVSheet.Range("BA:BZ").AutoFilter Field:=FieldNumber, Criteria1:="<=(0.1)"
+    Range("BA2").Select
+    Range(Selection, Selection.End(xlDown)).Select
+    CountingSubTot = WorksheetFunction.Subtotal(3, Range(Selection, Selection.End(xlDown)))
+    If CountingSubTot > 0 Then
+        Selection.Copy
+        Sheets("1-Print-FX Buyer-Outflow").Select
+        Range("C26:C" & (CountingSubTot + 25)).Select
+        Selection.PasteSpecial Paste:=xlPasteValues, Operation:=xlNone, SkipBlanks _
+            :=False, Transpose:=False
+       
+        PVSheet.Select
+        Range(Cells(2, 54), Cells(LastRowBuyer, LastColBuyer - 1)).Select
+   
+        Selection.Copy
+        Sheets("1-Print-FX Buyer-Outflow").Select
+        Range("E26").Select
+        Selection.PasteSpecial Paste:=xlPasteValues, Operation:=xlNone, SkipBlanks _
+            :=False, Transpose:=False
+   
+        Selection.NumberFormat = "0.00"
+        Selection.NumberFormat = "0.00_);(0.00)"
+   
+        i = 26
+        Do Until Sheets("1-Print-FX Buyer-Outflow").Range("C" & i) = ""
+       
+            If Trim(Sheets("1-Print-FX Buyer-Outflow").Range("C" & i)) = "QATAR CTRAL BK" Then
+                Sheets("1-Print-FX Buyer-Outflow").Range("D" & i) = "QCB"
+            Else
+                Sheets("1-Print-FX Buyer-Outflow").Range("D" & i) = "Corporate"
+            End If
+            i = i + 1
+        Loop
+   
+        Sheets("1-Print-FX Buyer-Outflow").Select
+        Rows("26:26").Select
+        Selection.Insert Shift:=xlDown, CopyOrigin:=xlFormatFromRightOrBelow
+        Selection.Insert Shift:=xlDown, CopyOrigin:=xlFormatFromRightOrBelow
+        Sheets("1-Print-FX Buyer-Outflow").Range("C27") = "Aggregated All Others (USD 1 million below )"
+        Range("C26:C27").Select
+        Selection.Font.Bold = True
+       
+        Sheets("1-Print-FX Buyer-Outflow").Range("C26") = "QATAR CENTRAL BANK"
+        Sheets("1-Print-FX Buyer-Outflow").Range("E26:P26").Formula = "=0"
+        Sheets("1-Print-FX Buyer-Outflow").Range("D26") = "QCB"
+        Sheets("1-Print-FX Buyer-Outflow").Range("E13:P13").Formula = "=SUM(E26:E1000)"
+        Sheets("1-Print-FX Buyer-Outflow").Range("E15:P15").Formula = "=0"
+        Sheets("1-Print-FX Buyer-Outflow").Range("E16:P16").Formula = "=E13-E15"
+        Sheets("1-Print-FX Buyer-Outflow").Range("Q26:Q274").Formula = "=SUM(E26:P26)"
+        Sheets("1-Print-FX Buyer-Outflow").Range("E25:P25").Formula = "=SUM(E26:E1000)"
+       
+        Sheets("1-Print-FX Buyer-Outflow").Range("Q25") = "=SUM(Q26:Q10000)"
+'================= AGGREGATE <= -1 MILLION INTO ROW 27 (BUYER OUTFLOW) =================
+With Sheets("1-Print-FX Buyer-Outflow")
+    Dim lrow As Long, row As Long, col As Long
+    Dim row_Total As Double
+    Dim BTHRESHOLD As Double
+    ' Threshold for aggregation (values are in USD million, so -1 = -1 million)
+    BTHRESHOLD = 1
+    ' Find last populated client row in column C
+    lrow = .Cells(.Rows.Count, "C").End(xlUp).row
+    If lrow < 28 Then GoTo DoneAgg1 ' Exit if no data
+    ' Initialize aggregate row (Row 27)
+    .Range("C27").Value = "Aggregated All Others (USD 1 million below)"
+    .Range("D27").Value = ""
+    .Range("E27:P27").Value = 0
+    .Range("Q27").Value = 0 ' Reset total
+    ' Loop bottom-up to avoid index issues when deleting rows
+    For row = lrow To 28 Step -1
+        If Trim(.Cells(row, "C").Value) <> "" Then
+            ' Calculate total for the current row (E:P)
+            row_Total = Abs(Application.sum(.Range(.Cells(row, "E"), .Cells(row, "P"))))
+            ' Aggregate if outflow <= threshold (e.g., <= -1 million)
+            If row_Total <= BTHRESHOLD Then
+                ' Add values to Row 27 (E:P)
+                For col = 5 To 16 ' E=5, P=16
+                    .Cells(27, col).Value = .Cells(27, col).Value + .Cells(row, col).Value
+                Next col
+                ' Update Q27 (sum of E27:P27)
+                .Range("Q27").Value = Application.sum(.Range("E27:P27"))
+                ' Delete the aggregated row
+                .Rows(row).Delete
+            End If
+        End If
+    Next row
+    ' Format Row 27
+    .Range("C27").Font.Bold = True
+    .Range("E27:P27").NumberFormat = "0.00_);(0.00)"
+    .Range("Q27").NumberFormat = "0.00_);(0.00)"
+DoneAgg1:
+End With
+'=========================== END AGGREGATION BLOCK ===============================
+       
+        j = 0
+        For i = 28 To 1000
+            Sheets("1-Print-FX Buyer-Outflow").Range("B" & i) = j + 1
+            j = j + 1
+        Next i
+       
+       
+    End If
+    PVSheet.Select
+    PVSheet.Range("AA1:AZ500").AutoFilter
+'===============================================================================================================================
+' 0-Top 100 (2024)
+'===============================================================================================================================
+Sheet4.Range("C12").Formula = "='2-Data Sorting-FX Seller '!L10"
+Sheet4.Range("C12:C111").Formula = "=IF('2-Data Sorting-FX Seller '!D11>0,'2-Data Sorting-FX Seller '!B11,"""")"
+Sheet4.Range("D12") = "QCB"
+Sheet4.Range("D12:D111").Formula = "=IF('2-Data Sorting-FX Seller '!D11>0, ""Corporate"","""")"
+Sheet4.Range("E12:E111").Formula = "=IF(ISNA(VLOOKUP(TRIM(C12),'FXT REPORT'!EB:EH,7,FALSE)),"""",VLOOKUP(TRIM(C12),'FXT REPORT'!EB:EH,7,FALSE))"
+Sheet4.Range("F12").Formula = "='2-Data Sorting-FX Seller '!N10"
+Sheet4.Range("F12:F111").Formula = "='2-Data Sorting-FX Seller '!D11"
+Sheet4.Range("F112").Formula = "=SUM(F12:F111)"
+Sheet4.Range("G12:G111").Formula = "=(F12/$F$112)"
+Sheet4.Range("J12:J111").Formula = "=IF('2-Data Sorting-FX Buyer'!D10 < 0,'2-Data Sorting-FX Buyer'!B10,"""")"
+Sheet4.Range("K12:K111").Formula = "=IF('2-Data Sorting-FX Buyer'!D10 < 0, ""Corporate"","""")"
+Sheet4.Range("L12:L111").Formula = "=IF(ISNA(VLOOKUP(TRIM(J12),'FXT REPORT'!EB:EH,7,FALSE)),"""",VLOOKUP(TRIM(J12),'FXT REPORT'!EB:EH,7,FALSE))"
+Sheet4.Range("M12:M111").Formula = "='2-Data Sorting-FX Buyer'!D10"
+Sheet4.Range("N12:N111").Formula = "=(M12/$M$112)"
+'===============================================================================================================================
+' 0-Print Top Summary
+'===============================================================================================================================
+Sheets("0-Print Top Summary").Range("L17") = "=P12"
+Sheets("0-Print Top Summary").Range("L18") = "=P13"
+Sheets("0-Print Top Summary").Range("L28") = "=P23"
+Sheets("0-Print Top Summary").Range("L29") = "=P24"
+'===============================================================================================================================
+' 0-Print-Excutive Summary
+'===============================================================================================================================
+Sheets("0-Print-Excutive Summary ").Range("N12") = "=P17"
+Sheets("0-Print-Excutive Summary ").Range("N13") = "=P18"
+       
+'===============================================================================================================================
+' DATE
+'===============================================================================================================================
+    Sheets("0-Print Top Summary").Range("D4") = Date
+    Sheets("Refresh").Select
+    PVSheet.Columns("AA:BZ").EntireColumn.Hidden = True
+    Application.EnableEvents = True
+    Application.DisplayAlerts = True
+    Application.ScreenUpdating = True
+   
+   
+    MsgBox "Report is generated!", vbInformation
+   
+End Sub
