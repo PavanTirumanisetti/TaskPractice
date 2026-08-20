@@ -1,1 +1,381 @@
-I am glad to refer Alavala Vinay, a final-year Computer Science Engineering student at Dr. M.G.R. Educational and Research Institute with an excellent academic record (CGPA 8.41). He possesses strong technical skills in Java, JavaScript, TypeScript, React, Node.js, Spring Boot, MongoDB, MySQL, and cloud integration. Vinay has successfully executed projects like a Ride Booking System, MERN Chat Application, and a One-on-One Chat App, showcasing expertise in real-time communication, API integration, and scalable system design. His certifications in MongoDB, Java, SQL, and Agile methodologies further strengthen his profile. With proven knowledge and hands-on project experience, he will be a strong contributor.
+Option Explicit
+
+Sub Generate_FinalReport_NewTemplate()
+    Dim PVSheet As Worksheet
+    Dim wsSeller As Worksheet, wsBuyer As Worksheet
+    Dim LastRowSeller As Long, LastRowBuyer As Long
+    Dim LastColSeller As Long, LastColBuyer As Long
+    Dim i As Long, CountingSubTot As Long
+    Dim MonthsCount As Integer, FieldNumber As Integer
+    Dim EndofMonth As Date, FirstofMonth As Date
+    
+    On Error GoTo ErrHandler
+    
+    Set PVSheet = Worksheets("PivotTable")
+    Set wsSeller = Worksheets("Data Sorting FX Seller")
+    Set wsBuyer = Worksheets("Data Sorting FX Buyer")
+    
+    Application.EnableEvents = False
+    Application.DisplayAlerts = False
+    Application.ScreenUpdating = False
+    Application.Calculation = xlCalculationManual
+    
+    '==========================================================================
+    ' CLEANING – clear only data cells in the new vertical sheets
+    '==========================================================================
+    ClearAllSections wsSeller
+    ClearAllSections wsBuyer
+    
+    ' Optional: still clear the old sheets if they exist (harmless)
+    On Error Resume Next
+    Sheets("2-Data Sorting-FX Seller ").Range("B10:D500").ClearContents
+    Sheets("2-Data Sorting-FX Seller ").Range("L10:N500").ClearContents
+    Sheets("2-Data Sorting-FX Buyer").Range("B10:D500").ClearContents
+    Sheets("2-Data Sorting-FX Buyer").Range("L10:N500").ClearContents
+    On Error GoTo ErrHandler
+    
+    PVSheet.Range("AA:BZ").Delete
+    
+    '==========================================================================
+    ' END OF THE MONTH DATE (identical to original)
+    '==========================================================================
+    EndofMonth = DateAdd("d", -1, DateSerial(Year(Now), Month(Now), 1))
+    On Error Resume Next
+    Sheets("0-Print Top Summary").Range("C4:D4").NumberFormat = "@"
+    Sheets("0-Print Top Summary").Range("C4:D4") = Format(EndofMonth, "DD-MMM-YYYY")
+    Sheets("REFRESH").Range("F5") = EndofMonth
+    On Error GoTo ErrHandler
+    
+    MonthsCount = Month(EndofMonth)
+    FirstofMonth = DateSerial(Year(EndofMonth), Month(EndofMonth), 1)
+    FieldNumber = MonthsCount + 2
+    
+    '==========================================================================
+    ' PREPARING THE DATA – FX Seller (identical to original)
+    '==========================================================================
+    PVSheet.Select
+    ActiveSheet.PivotTables("FxtPivotTable").PivotFields("DIRECTION").CurrentPage = "(All)"
+    With ActiveSheet.PivotTables("FxtPivotTable").PivotFields("DIRECTION")
+        .PivotItems("FX Seller").Visible = True
+        .PivotItems("FX Buyer").Visible = False
+    End With
+    
+    PVSheet.Columns("A:T").Copy
+    PVSheet.Columns("AA:AP").PasteSpecial Paste:=xlPasteValues
+    
+    PVSheet.Range("AA4") = "CLIENT NAME"
+    PVSheet.Range("AA1:AT3").Delete
+    PVSheet.Range("AA2:AT2").Delete
+    
+    LastRowSeller = PVSheet.Range("AA" & Rows.Count).End(xlUp).Row
+    If PVSheet.Range("AA" & LastRowSeller) = "Grand Total" Then
+        PVSheet.Range("AA" & LastRowSeller & ":AT" & LastRowSeller).Delete
+        LastRowSeller = LastRowSeller - 1
+    End If
+    
+    i = 27
+    Do Until PVSheet.Cells(1, i) = "Grand Total" Or i > 50
+        i = i + 1
+    Loop
+    LastColSeller = i
+    
+    For i = 2 To LastRowSeller
+        PVSheet.Cells(i, LastColSeller + 1).Value = (PVSheet.Cells(i, LastColSeller) * MonthsCount) / 12
+    Next i
+    PVSheet.Cells(1, LastColSeller + 1) = "PROJECTED AMOUNT"
+    
+    PVSheet.Sort.SortFields.Clear
+    PVSheet.Sort.SortFields.Add Key:=Columns(LastColSeller), _
+        SortOn:=xlSortOnValues, Order:=xlDescending, DataOption:=xlSortNormal
+    With PVSheet.Sort
+        .SetRange Range("AA1:AT" & LastRowSeller)
+        .Header = xlYes
+        .MatchCase = False
+        .Orientation = xlTopToBottom
+        .SortMethod = xlPinYin
+        .Apply
+    End With
+    PVSheet.Range("AA:AT").NumberFormat = "0.00_);(0.00)"
+    
+    '==========================================================================
+    ' PREPARING THE DATA – FX Buyer (identical to original)
+    '==========================================================================
+    ActiveSheet.PivotTables("FxtPivotTable").PivotFields("DIRECTION").CurrentPage = "(All)"
+    With ActiveSheet.PivotTables("FxtPivotTable").PivotFields("DIRECTION")
+        .PivotItems("FX Buyer").Visible = True
+        .PivotItems("FX Seller").Visible = False
+    End With
+    
+    PVSheet.Columns("A:T").Copy
+    PVSheet.Range("BA1").PasteSpecial Paste:=xlPasteValues
+    
+    PVSheet.Range("BA4") = "CLIENT NAME"
+    PVSheet.Range("BA1:BT3").Delete
+    PVSheet.Range("BA2:BT2").Delete
+    
+    LastRowBuyer = PVSheet.Range("BA" & Rows.Count).End(xlUp).Row
+    If PVSheet.Range("BA" & LastRowBuyer) = "Grand Total" Then
+        PVSheet.Range("BA" & LastRowBuyer & ":BT" & LastRowBuyer).Delete
+        LastRowBuyer = LastRowBuyer - 1
+    End If
+    
+    i = 49
+    Do Until PVSheet.Cells(1, i) = "Grand Total" Or i > 70
+        i = i + 1
+    Loop
+    LastColBuyer = i
+    
+    PVSheet.Cells(1, LastColBuyer + 1) = "PROJECTED AMOUNT"
+    For i = 2 To LastRowBuyer
+        PVSheet.Cells(i, LastColBuyer + 1).Value = (PVSheet.Cells(i, LastColBuyer) * MonthsCount) / 12
+    Next i
+    
+    PVSheet.Sort.SortFields.Clear
+    PVSheet.Sort.SortFields.Add Key:=Columns(LastColBuyer), _
+        SortOn:=xlSortOnValues, Order:=xlAscending, DataOption:=xlSortNormal
+    With PVSheet.Sort
+        .SetRange Range("BA1:BT" & LastRowBuyer)
+        .Header = xlYes
+        .MatchCase = False
+        .Orientation = xlTopToBottom
+        .SortMethod = xlPinYin
+        .Apply
+    End With
+    PVSheet.Range("BA:BT").NumberFormat = "0.00_);(0.00)"
+    
+    '==========================================================================
+    ' FILLING – Data Sorting FX Seller (new vertical layout)
+    '==========================================================================
+    ' Non-QCB → Corporate
+    PVSheet.Range("AA1:AZ500").AutoFilter
+    PVSheet.Range("AA:AZ").AutoFilter Field:=1, Criteria1:="<>*QATAR CTRAL BK*"
+    PVSheet.Range("AA:AZ").AutoFilter Field:=FieldNumber, Criteria1:=">.0"
+    
+    CountingSubTot = Application.WorksheetFunction.Subtotal(3, PVSheet.Range("AA2:AA" & LastRowSeller))
+    If CountingSubTot > 0 Then
+        PopulateSection wsSeller, "Corporate", _
+                        PVSheet.Range("AA2:AA" & LastRowSeller), _
+                        PVSheet.Range(PVSheet.Cells(2, LastColSeller), PVSheet.Cells(LastRowSeller, LastColSeller)), _
+                        CountingSubTot
+    End If
+    
+    ' QCB → Bank
+    PVSheet.ShowAllData
+    PVSheet.Range("AA:AZ").AutoFilter Field:=1, Criteria1:="*QATAR CTRAL BK*"
+    
+    CountingSubTot = Application.WorksheetFunction.Subtotal(3, PVSheet.Range("AA2:AA" & LastRowSeller))
+    If CountingSubTot > 0 Then
+        PopulateSection wsSeller, "Bank", _
+                        PVSheet.Range("AA2:AA" & LastRowSeller), _
+                        PVSheet.Range(PVSheet.Cells(2, LastColSeller), PVSheet.Cells(LastRowSeller, LastColSeller)), _
+                        CountingSubTot
+    End If
+    PVSheet.ShowAllData
+    
+    '==========================================================================
+    ' FILLING – Data Sorting FX Buyer (new vertical layout)
+    '==========================================================================
+    ' Non-QCB → Corporate
+    PVSheet.Range("BA1:BZ500").AutoFilter
+    PVSheet.Range("BA:BZ").AutoFilter Field:=1, Criteria1:="<>*QATAR CTRAL BK*"
+    PVSheet.Range("BA:BZ").AutoFilter Field:=FieldNumber, Criteria1:="<(0.0)"
+    
+    CountingSubTot = Application.WorksheetFunction.Subtotal(3, PVSheet.Range("BA2:BA" & LastRowBuyer))
+    If CountingSubTot > 0 Then
+        PopulateSection wsBuyer, "Corporate", _
+                        PVSheet.Range("BA2:BA" & LastRowBuyer), _
+                        PVSheet.Range(PVSheet.Cells(2, LastColBuyer), PVSheet.Cells(LastRowBuyer, LastColBuyer)), _
+                        CountingSubTot
+    End If
+    
+    ' QCB → Bank
+    PVSheet.ShowAllData
+    PVSheet.Range("BA:BZ").AutoFilter Field:=1, Criteria1:="*QATAR CTRAL BK*"
+    
+    CountingSubTot = Application.WorksheetFunction.Subtotal(3, PVSheet.Range("BA2:BA" & LastRowBuyer))
+    If CountingSubTot > 0 Then
+        PopulateSection wsBuyer, "Bank", _
+                        PVSheet.Range("BA2:BA" & LastRowBuyer), _
+                        PVSheet.Range(PVSheet.Cells(2, LastColBuyer), PVSheet.Cells(LastRowBuyer, LastColBuyer)), _
+                        CountingSubTot
+    End If
+    PVSheet.ShowAllData
+    
+    '==========================================================================
+    ' CLEAN-UP
+    '==========================================================================
+    PVSheet.Columns("AA:BZ").EntireColumn.Hidden = True
+    
+    Application.Calculation = xlCalculationAutomatic
+    Application.EnableEvents = True
+    Application.DisplayAlerts = True
+    Application.ScreenUpdating = True
+    
+    MsgBox "Data Sorting FX Seller & FX Buyer populated successfully into the new vertical template!", vbInformation
+    Exit Sub
+    
+ErrHandler:
+    Application.Calculation = xlCalculationAutomatic
+    Application.EnableEvents = True
+    Application.DisplayAlerts = True
+    Application.ScreenUpdating = True
+    MsgBox "Error " & Err.Number & ": " & Err.Description, vbCritical
+End Sub
+
+'==============================================================================
+' Helper: Clear data cells only (never touch headers / merged cells / Grand Total)
+'==============================================================================
+Private Sub ClearAllSections(ws As Worksheet)
+    Dim sections As Variant
+    Dim s As Variant
+    Dim hdrRow As Long, dataStart As Long, grandRow As Long
+    Dim r As Long
+    
+    sections = Array("Corporate", "Individual", "Bank", "Exchange House", "Other")
+    
+    For Each s In sections
+        hdrRow = FindSectionHeaderRow(ws, CStr(s))
+        If hdrRow > 0 Then
+            dataStart = FindFirstDataRow(ws, hdrRow)
+            grandRow = FindGrandTotalRow(ws, dataStart)
+            If dataStart > 0 And grandRow > dataStart Then
+                For r = dataStart To grandRow - 1
+                    ' Clear only the writable columns (Serial, Name, Total)
+                    ' Leave CR No / ID / Bank Code / License columns untouched
+                    ws.Cells(r, 1).ClearContents   ' Serial
+                    ws.Cells(r, 2).ClearContents   ' Name
+                    If s = "Individual" Then
+                        ws.Cells(r, 5).ClearContents   ' Total is in col E for Individual
+                    Else
+                        ws.Cells(r, 4).ClearContents   ' Total is in col D for others
+                    End If
+                Next r
+            End If
+        End If
+    Next s
+End Sub
+
+'==============================================================================
+' Helper: Locate section header row by text (handles merged cells)
+'==============================================================================
+Private Function FindSectionHeaderRow(ws As Worksheet, sectionName As String) As Long
+    Dim r As Long, c As Long
+    Dim cellVal As String
+    
+    For r = 1 To 60
+        For c = 1 To 6
+            cellVal = UCase$(Trim$(CStr(ws.Cells(r, c).Value)))
+            If InStr(1, cellVal, UCase$(sectionName), vbTextCompare) > 0 Then
+                ' Prefer the row that also contains "Serial" or is a dark header
+                If InStr(1, cellVal, "SERIAL", vbTextCompare) > 0 Or _
+                   InStr(1, cellVal, "NAME OF THE FX", vbTextCompare) > 0 Or _
+                   ws.Cells(r, c).MergeCells Then
+                    FindSectionHeaderRow = r
+                    Exit Function
+                End If
+                ' Fallback – still accept pure section name
+                FindSectionHeaderRow = r
+                Exit Function
+            End If
+        Next c
+    Next r
+    FindSectionHeaderRow = 0
+End Function
+
+'==============================================================================
+' Helper: First usable data row under a header (skips merged header rows)
+'==============================================================================
+Private Function FindFirstDataRow(ws As Worksheet, headerRow As Long) As Long
+    Dim r As Long
+    For r = headerRow + 1 To headerRow + 8
+        ' Skip rows that still look like headers or are completely merged
+        If Not ws.Cells(r, 1).MergeCells And _
+           Not ws.Cells(r, 2).MergeCells And _
+           UCase$(Trim$(CStr(ws.Cells(r, 1).Value))) <> "SERIAL NO." And _
+           UCase$(Trim$(CStr(ws.Cells(r, 1).Value))) <> "GRAND TOTAL" Then
+            FindFirstDataRow = r
+            Exit Function
+        End If
+    Next r
+    FindFirstDataRow = headerRow + 1   ' safe fallback
+End Function
+
+'==============================================================================
+' Helper: Find the Grand Total row that belongs to the current section
+'==============================================================================
+Private Function FindGrandTotalRow(ws As Worksheet, afterRow As Long) As Long
+    Dim r As Long
+    For r = afterRow To afterRow + 30
+        If UCase$(Trim$(CStr(ws.Cells(r, 1).Value))) = "GRAND TOTAL" Then
+            FindGrandTotalRow = r
+            Exit Function
+        End If
+    Next r
+    FindGrandTotalRow = 0
+End Function
+
+'==============================================================================
+' Core population routine – writes into one section only
+'==============================================================================
+Private Sub PopulateSection(ws As Worksheet, sectionName As String, _
+                            srcNames As Range, srcTotals As Range, _
+                            recordCount As Long)
+    
+    Dim hdrRow As Long, dataStart As Long, grandRow As Long
+    Dim available As Long, needInsert As Long
+    Dim destNameCol As Long, destTotalCol As Long
+    Dim r As Long, i As Long
+    Dim visibleNames As Range, visibleTotals As Range
+    
+    hdrRow = FindSectionHeaderRow(ws, sectionName)
+    If hdrRow = 0 Then Exit Sub
+    
+    dataStart = FindFirstDataRow(ws, hdrRow)
+    grandRow = FindGrandTotalRow(ws, dataStart)
+    If grandRow = 0 Then Exit Sub
+    
+    ' Column mapping for the new template
+    destNameCol = 2   ' Column B = Name
+    If sectionName = "Individual" Then
+        destTotalCol = 5   ' Column E
+    Else
+        destTotalCol = 4   ' Column D
+    End If
+    
+    available = grandRow - dataStart
+    needInsert = recordCount - available
+    
+    ' Expand the section if necessary (insert above Grand Total)
+    If needInsert > 0 Then
+        ws.Rows(grandRow).Resize(needInsert).Insert Shift:=xlDown
+        grandRow = grandRow + needInsert
+    End If
+    
+    ' Get only the visible (filtered) cells
+    On Error Resume Next
+    Set visibleNames = srcNames.SpecialCells(xlCellTypeVisible)
+    Set visibleTotals = srcTotals.SpecialCells(xlCellTypeVisible)
+    On Error GoTo 0
+    
+    If visibleNames Is Nothing Then Exit Sub
+    
+    ' Write values (formatting is left completely untouched)
+    i = 0
+    For Each r In visibleNames.Cells   ' r is actually a Range here
+        i = i + 1
+        If i > recordCount Then Exit For
+        
+        ws.Cells(dataStart + i - 1, 1).Value = i                          ' Serial
+        ws.Cells(dataStart + i - 1, destNameCol).Value = r.Value          ' Name
+        ws.Cells(dataStart + i - 1, destTotalCol).Value = visibleTotals.Cells(i).Value
+        ws.Cells(dataStart + i - 1, destTotalCol).NumberFormat = "0.00_);(0.00)"
+    Next r
+    
+    ' Update Grand Total formula to the exact range just populated
+    ws.Cells(grandRow, destTotalCol).Formula = _
+        "=SUM(" & ws.Cells(dataStart, destTotalCol).Address(False, False) & ":" & _
+                 ws.Cells(dataStart + recordCount - 1, destTotalCol).Address(False, False) & ")"
+    ws.Cells(grandRow, destTotalCol).NumberFormat = "0.00_);(0.00)"
+    
+    Application.CutCopyMode = False
+End Sub
